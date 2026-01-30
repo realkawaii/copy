@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>跨裝置剪貼簿</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .note-card { transition: all 0.3s ease; }
+        .note-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-4 md:p-8">
+
+    <div class="max-w-2xl mx-auto">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-blue-600">雲端剪貼簿</h1>
+            <p class="text-gray-500">輸入文字後自動同步至所有裝置</p>
+        </header>
+
+        <div class="bg-white rounded-xl shadow-sm p-4 mb-8">
+            <textarea id="noteInput" rows="4" class="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none" placeholder="在此輸入或貼上文字..."></textarea>
+            <button id="saveBtn" class="w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition">
+                儲存紀錄
+            </button>
+        </div>
+
+        <div id="notesList" class="space-y-4">
+            <div class="text-center text-gray-400 py-10">讀取中...</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, doc, deleteDoc, updateDoc } 
+        from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // 你的 Firebase 配置
+        const firebaseConfig = {
+            apiKey: "AIzaSyBT2bc8eC5VD7rneK7GlMhqlmXQK4UhLo4",
+            authDomain: "copy-f3c16.firebaseapp.com",
+            projectId: "copy-f3c16",
+            storageBucket: "copy-f3c16.firebasestorage.app",
+            messagingSenderId: "225102096977",
+            appId: "1:225102096977:web:1fe2cbaf4437dd79a06670",
+            measurementId: "G-YR7GK954QR"
+        };
+
+        // 初始化 Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const notesCol = collection(db, "notes");
+
+        const noteInput = document.getElementById('noteInput');
+        const saveBtn = document.getElementById('saveBtn');
+        const notesList = document.getElementById('notesList');
+
+        // --- 1. 儲存功能 ---
+        saveBtn.addEventListener('click', async () => {
+            const text = noteInput.value.trim();
+            if (!text) return alert("請輸入內容");
+
+            try {
+                await addDoc(notesCol, {
+                    content: text,
+                    createdAt: serverTimestamp()
+                });
+                noteInput.value = '';
+            } catch (e) {
+                console.error("儲存失敗: ", e);
+            }
+        });
+
+        // --- 2. 監聽數據 (實時更新) ---
+        const q = query(notesCol, orderBy("createdAt", "desc"));
+        onSnapshot(q, (snapshot) => {
+            notesList.innerHTML = '';
+            snapshot.forEach((docSnap) => {
+                const data = docSnap.data();
+                const id = docSnap.id;
+                renderNote(id, data.content);
+            });
+            if (snapshot.empty) {
+                notesList.innerHTML = '<p class="text-center text-gray-400">目前沒有紀錄</p>';
+            }
+        });
+
+        // --- 3. 渲染畫面 ---
+        function renderNote(id, content) {
+            const div = document.createElement('div');
+            div.className = "note-card bg-white p-4 rounded-lg border border-gray-100 shadow-sm flex flex-col";
+            div.innerHTML = `
+                <textarea id="text-${id}" class="w-full p-1 text-gray-700 bg-transparent border-none focus:ring-0 resize-none overflow-hidden" rows="2">${content}</textarea>
+                <div class="flex justify-end gap-3 mt-3 pt-3 border-t border-gray-50">
+                    <button onclick="copyToClipboard('${id}')" class="text-xs text-blue-500 font-semibold uppercase">複製</button>
+                    <button onclick="updateNote('${id}')" class="text-xs text-green-500 font-semibold uppercase">更新</button>
+                    <button onclick="deleteNote('${id}')" class="text-xs text-red-400 font-semibold uppercase">刪除</button>
+                </div>
+            `;
+            notesList.appendChild(div);
+        }
+
+        // --- 4. 功能函數 (掛載到 window 讓 HTML 呼叫) ---
+        window.copyToClipboard = (id) => {
+            const text = document.getElementById(`text-${id}`).value;
+            navigator.clipboard.writeText(text).then(() => alert("已複製到剪貼簿！"));
+        };
+
+        window.updateNote = async (id) => {
+            const newContent = document.getElementById(`text-${id}`).value;
+            try {
+                await updateDoc(doc(db, "notes", id), { content: newContent });
+                alert("更新成功");
+            } catch (e) { alert("更新失敗"); }
+        };
+
+        window.deleteNote = async (id) => {
+            if (confirm("確定要刪除嗎？")) {
+                await deleteDoc(doc(db, "notes", id));
+            }
+        };
+    </script>
+</body>
+</html>
