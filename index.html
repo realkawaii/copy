@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>雲端剪貼簿 Pro - 智能排序版</title>
+    <title>雲端剪貼簿 Pro - 極速版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         .note-card:hover { border-color: #3b82f6; }
-        .checkbox-custom { width: 28px; height: 28px; cursor: pointer; border-radius: 6px; }
-        /* 讓文字區域自動撐高 */
-        .auto-expand { min-height: 60px; }
+        .checkbox-custom { width: 30px; height: 30px; cursor: pointer; }
+        .btn-active-feedback { background-color: #10b981 !important; color: white !important; }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen pb-24">
@@ -18,14 +17,14 @@
     <div class="max-w-3xl mx-auto p-4">
         <header class="py-6 text-center">
             <h1 class="text-3xl font-extrabold text-blue-700">雲端剪貼簿</h1>
-            <p class="text-gray-500 mt-2">呈現：新→舊 | 複製：舊→新</p>
+            <p class="text-gray-500 mt-2">呈現：新→舊 | 複製：舊→新 (無彈窗版)</p>
         </header>
 
         <div class="bg-white rounded-2xl shadow-md p-5 mb-6">
             <textarea id="noteInput" rows="3" class="w-full p-4 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 mb-4 text-lg" placeholder="在此輸入文字..."></textarea>
             <div class="grid grid-cols-2 gap-4">
                 <button id="pasteSaveBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-2 text-lg">
-                    <i class="fas fa-paste"></i> 一鍵貼上並儲存
+                    <i class="fas fa-paste"></i> 一鍵貼上儲存
                 </button>
                 <button id="saveBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-2 text-lg">
                     <i class="fas fa-save"></i> 手動儲存
@@ -33,11 +32,16 @@
             </div>
         </div>
 
-        <div id="batchBar" class="hidden sticky top-4 z-20 bg-blue-600 text-white p-4 rounded-2xl shadow-xl mb-6 flex justify-between items-center">
-            <span id="selectedCount" class="font-bold ml-2">已選取 0 項</span>
-            <div class="flex gap-3">
-                <button onclick="batchCopy()" class="bg-white text-blue-600 px-6 py-2 rounded-xl font-black shadow-sm">一次複製</button>
-                <button onclick="batchDelete()" class="bg-red-500 text-white px-6 py-2 rounded-xl font-black shadow-sm">一次刪除</button>
+        <div id="batchBar" class="sticky top-4 z-20 bg-blue-600 text-white p-4 rounded-2xl shadow-xl mb-6 flex flex-wrap justify-between items-center gap-3">
+            <div class="flex items-center gap-3">
+                <button id="selectAllBtn" onclick="toggleSelectAll()" class="bg-blue-800 hover:bg-blue-900 text-white px-4 py-2 rounded-lg font-bold border border-blue-400">
+                    全選
+                </button>
+                <span id="selectedCount" class="font-bold">已選取 0 項</span>
+            </div>
+            <div class="flex gap-2">
+                <button id="copyBatchBtn" onclick="batchCopy()" class="bg-white text-blue-600 px-6 py-2 rounded-xl font-black shadow-sm active:scale-95 transition">一次複製</button>
+                <button onclick="batchDelete()" class="bg-red-500 text-white px-6 py-2 rounded-xl font-black shadow-sm active:scale-95 transition">一次刪除</button>
             </div>
         </div>
 
@@ -67,17 +71,13 @@
 
         const noteInput = document.getElementById('noteInput');
         const notesList = document.getElementById('notesList');
-        const batchBar = document.getElementById('batchBar');
-
-        // 儲存目前所有載入的資料以便排序複製
+        const selectAllBtn = document.getElementById('selectAllBtn');
         let loadedNotes = [];
 
-        // --- 1. 儲存功能 ---
+        // --- 1. 核心功能 ---
         async function saveData(text) {
             if (!text) return;
-            try {
-                await addDoc(notesCol, { content: text, createdAt: serverTimestamp() });
-            } catch (e) { alert("儲存失敗"); }
+            await addDoc(notesCol, { content: text, createdAt: serverTimestamp() });
         }
 
         document.getElementById('saveBtn').onclick = () => {
@@ -89,35 +89,33 @@
             try {
                 const text = await navigator.clipboard.readText();
                 if (text) await saveData(text);
-            } catch (err) { alert("請允許剪貼簿讀取權限"); }
+            } catch (err) { console.error("權限不足"); }
         };
 
-        // --- 2. 監聽數據 (呈現順序：由新至舊) ---
+        // --- 2. 監聽與渲染 ---
         onSnapshot(query(notesCol, orderBy("createdAt", "desc")), (snapshot) => {
             notesList.innerHTML = '';
             loadedNotes = [];
             snapshot.forEach((docSnap) => {
-                const data = docSnap.data();
-                const note = { id: docSnap.id, ...data };
-                loadedNotes.push(note); // 這裡存的是新到舊
+                const note = { id: docSnap.id, ...docSnap.data() };
+                loadedNotes.push(note);
                 renderNote(note.id, note.content);
             });
             updateBatchUI();
         });
 
-        // --- 3. 渲染單條紀錄 ---
         function renderNote(id, content) {
             const div = document.createElement('div');
-            div.className = "note-card bg-white p-5 rounded-2xl shadow-sm border-2 border-transparent flex items-start gap-4";
+            div.className = "note-card bg-white p-5 rounded-2xl shadow-sm border-2 border-transparent flex items-start gap-4 transition-all";
             div.innerHTML = `
                 <input type="checkbox" class="note-checkbox checkbox-custom mt-2" value="${id}" onchange="updateBatchUI()">
                 <div class="flex-1">
-                    <textarea id="text-${id}" class="auto-expand w-full p-2 text-xl text-gray-800 bg-transparent border-none focus:ring-0 resize-none" rows="2">${content}</textarea>
+                    <textarea id="text-${id}" class="w-full p-2 text-xl text-gray-800 bg-transparent border-none focus:ring-0 resize-none" rows="2">${content}</textarea>
                     <div class="flex justify-end gap-4 mt-4">
-                        <button onclick="updateNote('${id}')" class="flex-1 bg-green-50 text-green-600 font-black py-4 rounded-xl border-2 border-green-200 text-xl hover:bg-green-100 transition">
-                            編輯確認
+                        <button onclick="updateNote('${id}', this)" class="flex-1 bg-green-50 text-green-600 font-black py-4 rounded-xl border-2 border-green-200 text-xl active:bg-green-200 transition">
+                            確認修改
                         </button>
-                        <button onclick="deleteNote('${id}')" class="flex-1 bg-red-50 text-red-600 font-black py-4 rounded-xl border-2 border-red-200 text-xl hover:bg-red-100 transition">
+                        <button onclick="deleteNote('${id}')" class="flex-1 bg-red-50 text-red-600 font-black py-4 rounded-xl border-2 border-red-200 text-xl active:bg-red-200 transition">
                             刪除紀錄
                         </button>
                     </div>
@@ -126,41 +124,67 @@
             notesList.appendChild(div);
         }
 
-        // --- 4. 批次功能 (核心修改：複製時由舊至新) ---
+        // --- 3. 批量操作邏輯 ---
+        window.toggleSelectAll = () => {
+            const checkboxes = document.querySelectorAll('.note-checkbox');
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+            
+            checkboxes.forEach(cb => cb.checked = !allChecked);
+            updateBatchUI();
+        };
+
         window.updateBatchUI = () => {
+            const checkboxes = document.querySelectorAll('.note-checkbox');
             const selected = document.querySelectorAll('.note-checkbox:checked');
+            
             document.getElementById('selectedCount').innerText = `已選取 ${selected.length} 項`;
-            batchBar.classList.toggle('hidden', selected.length === 0);
+            
+            // 更新全選按鈕文字
+            if (checkboxes.length > 0 && selected.length === checkboxes.length) {
+                selectAllBtn.innerText = "取消全選";
+                selectAllBtn.classList.replace('bg-blue-800', 'bg-blue-500');
+            } else {
+                selectAllBtn.innerText = "全選";
+                selectAllBtn.classList.replace('bg-blue-500', 'bg-blue-800');
+            }
         };
 
         window.batchCopy = () => {
             const selectedIds = Array.from(document.querySelectorAll('.note-checkbox:checked')).map(cb => cb.value);
-            
-            // 從 loadedNotes 過濾出選中的項目，並將其反轉 (讓順序變成由舊至新)
+            if (selectedIds.length === 0) return;
+
             const selectedData = loadedNotes
                 .filter(note => selectedIds.includes(note.id))
-                .reverse(); // 因為原本是新到舊，反轉後變成舊到新
+                .reverse(); // 轉為舊到新
 
             const finalText = selectedData.map(note => note.content).join('\n');
             
             navigator.clipboard.writeText(finalText).then(() => {
-                alert(`已依時間順序(舊→新)複製 ${selectedData.length} 項內容`);
+                const btn = document.getElementById('copyBatchBtn');
+                const originalText = btn.innerText;
+                btn.innerText = "已複製！";
+                btn.classList.add('btn-active-feedback');
+                setTimeout(() => {
+                    btn.innerText = originalText;
+                    btn.classList.remove('btn-active-feedback');
+                }, 1000);
             });
         };
 
         window.batchDelete = async () => {
-            if (!confirm("確定要刪除所有選取項嗎？")) return;
+            if (!confirm(`確定要刪除這 ${document.querySelectorAll('.note-checkbox:checked').length} 項紀錄嗎？`)) return;
             const selected = document.querySelectorAll('.note-checkbox:checked');
             const batch = writeBatch(db);
             selected.forEach(cb => batch.delete(doc(db, "notes", cb.value)));
             await batch.commit();
         };
 
-        // --- 5. 單項操作 ---
-        window.updateNote = async (id) => {
+        // --- 4. 單項操作 ---
+        window.updateNote = async (id, btn) => {
             const newContent = document.getElementById(`text-${id}`).value;
             await updateDoc(doc(db, "notes", id), { content: newContent });
-            alert("已成功更新內容");
+            btn.innerText = "更新成功！";
+            setTimeout(() => btn.innerText = "確認修改", 1000);
         };
 
         window.deleteNote = async (id) => {
