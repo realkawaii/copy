@@ -2,55 +2,62 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>雲端剪貼簿 Pro - 內容全展開版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>極速雲端剪貼簿</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
+        /* 禁止手機雙擊縮放，提升操作手感 */
+        body { touch-action: manipulation; }
         .note-card:hover { border-color: #3b82f6; }
         .checkbox-custom { width: 30px; height: 30px; cursor: pointer; flex-shrink: 0; }
-        /* 移除捲軸並讓高度由內容決定 */
-        .auto-height {
-            overflow-y: hidden;
-            height: auto;
-            min-height: 50px;
-        }
+        .auto-height { overflow-y: hidden; height: auto; min-height: 50px; }
+        /* 按鈕點擊時的下壓效果 */
+        button:active { transform: scale(0.97); }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen pb-24">
 
-    <div class="max-w-3xl mx-auto p-4">
-        <header class="py-6 text-center">
-            <h1 class="text-3xl font-extrabold text-blue-700">雲端剪貼簿</h1>
-            <p class="text-gray-500 mt-2">內容自動撐開 | 無需捲動</p>
+    <div class="max-w-3xl mx-auto p-3 md:p-4">
+        <header class="py-4 text-center">
+            <h1 class="text-2xl md:text-3xl font-extrabold text-blue-700">雲端剪貼簿</h1>
+            <p class="text-xs text-gray-500 mt-1">手機專用極速版</p>
         </header>
 
-        <div class="bg-white rounded-2xl shadow-md p-5 mb-6">
-            <textarea id="noteInput" oninput="autoHeight(this)" class="w-full p-4 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 mb-4 text-lg auto-height" placeholder="在此輸入文字..."></textarea>
-            <div class="grid grid-cols-2 gap-4">
-                <button id="pasteSaveBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-2 text-lg">
-                    <i class="fas fa-paste"></i> 一鍵貼上儲存
-                </button>
-                <button id="saveBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-2 text-lg">
-                    <i class="fas fa-save"></i> 手動儲存
-                </button>
-            </div>
+        <div class="bg-white rounded-2xl shadow-md p-4 mb-6 sticky top-2 z-30 border border-blue-100">
+            
+            <button id="pasteSaveBtn" class="w-full bg-green-500 hover:bg-green-600 text-white font-black py-5 rounded-xl shadow-lg transition flex items-center justify-center gap-3 text-xl mb-4">
+                <i class="fas fa-clipboard-check text-2xl"></i>
+                <span id="pasteBtnText">一鍵貼上並儲存</span>
+            </button>
+
+            <details class="group">
+                <summary class="list-none cursor-pointer text-center text-gray-400 text-sm font-medium hover:text-blue-500 transition">
+                    需要手動打字？點此展開 <i class="fas fa-chevron-down ml-1 group-open:rotate-180 transition-transform"></i>
+                </summary>
+                <div class="mt-3 animate-fade-in">
+                    <textarea id="noteInput" oninput="autoHeight(this)" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 text-lg auto-height" placeholder="在此輸入文字..."></textarea>
+                    <button id="saveBtn" class="w-full mt-3 bg-blue-600 text-white font-bold py-3 rounded-xl">
+                        <i class="fas fa-save"></i> 手動儲存
+                    </button>
+                </div>
+            </details>
         </div>
 
-        <div id="batchBar" class="sticky top-4 z-20 bg-blue-600 text-white p-4 rounded-2xl shadow-xl mb-6 flex flex-wrap justify-between items-center gap-3">
+        <div id="batchBar" class="hidden fixed bottom-6 left-4 right-4 z-40 bg-gray-900/90 backdrop-blur text-white p-4 rounded-2xl shadow-2xl flex justify-between items-center animate-slide-up">
             <div class="flex items-center gap-3">
-                <button id="selectAllBtn" onclick="toggleSelectAll()" class="bg-blue-800 hover:bg-blue-900 text-white px-4 py-2 rounded-lg font-bold border border-blue-400">
+                <button id="selectAllBtn" onclick="toggleSelectAll()" class="bg-gray-700 px-4 py-2 rounded-lg font-bold text-sm">
                     全選
                 </button>
-                <span id="selectedCount" class="font-bold text-white">已選取 0 項</span>
+                <span id="selectedCount" class="font-bold text-sm">0 項</span>
             </div>
             <div class="flex gap-2">
-                <button id="copyBatchBtn" onclick="batchCopy()" class="bg-white text-blue-600 px-6 py-2 rounded-xl font-black shadow-sm active:scale-95 transition">一次複製</button>
-                <button onclick="batchDelete()" class="bg-red-500 text-white px-6 py-2 rounded-xl font-black shadow-sm active:scale-95 transition">一次刪除</button>
+                <button id="copyBatchBtn" onclick="batchCopy()" class="bg-blue-500 text-white px-5 py-2 rounded-xl font-bold shadow-md">複製</button>
+                <button onclick="batchDelete()" class="bg-red-500 text-white px-5 py-2 rounded-xl font-bold shadow-md">刪除</button>
             </div>
         </div>
 
-        <div id="notesList" class="space-y-6">
+        <div id="notesList" class="space-y-4 px-1">
             <div class="text-center text-gray-400 py-10">資料載入中...</div>
         </div>
     </div>
@@ -77,34 +84,61 @@
         const noteInput = document.getElementById('noteInput');
         const notesList = document.getElementById('notesList');
         const selectAllBtn = document.getElementById('selectAllBtn');
+        const batchBar = document.getElementById('batchBar');
+        const pasteBtn = document.getElementById('pasteSaveBtn');
+        const pasteBtnText = document.getElementById('pasteBtnText');
+        
         let loadedNotes = [];
 
-        // 自動調整高度函數
         window.autoHeight = (el) => {
             el.style.height = 'auto';
             el.style.height = el.scrollHeight + 'px';
         };
 
-        // --- 1. 核心功能 ---
-        async function saveData(text) {
+        // --- 1. 極速一鍵貼上並儲存 ---
+        pasteBtn.onclick = async () => {
+            try {
+                // 視覺回饋：轉圈圈
+                const originalIcon = pasteBtn.innerHTML;
+                pasteBtnText.innerText = "讀取剪貼簿...";
+                
+                // 嘗試讀取剪貼簿
+                const text = await navigator.clipboard.readText();
+                
+                if (text && text.trim().length > 0) {
+                    pasteBtnText.innerText = "儲存中...";
+                    await addDoc(notesCol, { content: text, createdAt: serverTimestamp() });
+                    
+                    // 成功回饋：綠色勾勾
+                    pasteBtn.classList.replace('bg-green-500', 'bg-blue-600'); // 變色
+                    pasteBtn.innerHTML = '<i class="fas fa-check-circle text-2xl"></i><span>已儲存！</span>';
+                    
+                    // 1.5秒後復原
+                    setTimeout(() => {
+                        pasteBtn.classList.replace('bg-blue-600', 'bg-green-500');
+                        pasteBtn.innerHTML = originalIcon;
+                    }, 1500);
+                } else {
+                    alert("剪貼簿是空的，請先複製文字喔！");
+                    pasteBtnText.innerText = "一鍵貼上並儲存";
+                }
+            } catch (err) {
+                console.error(err);
+                alert("無法存取剪貼簿。\n\n請確認：\n1. 瀏覽器有給予「貼上」權限\n2. 若是 iPhone，請在詢問時點選「允許」");
+                pasteBtnText.innerText = "一鍵貼上並儲存";
+            }
+        };
+
+        // --- 2. 手動儲存 ---
+        document.getElementById('saveBtn').onclick = async () => {
+            const text = noteInput.value.trim();
             if (!text) return;
             await addDoc(notesCol, { content: text, createdAt: serverTimestamp() });
-            noteInput.style.height = 'auto'; // 儲存後重置高度
-        }
-
-        document.getElementById('saveBtn').onclick = () => {
-            saveData(noteInput.value.trim());
             noteInput.value = '';
+            noteInput.style.height = 'auto';
         };
 
-        document.getElementById('pasteSaveBtn').onclick = async () => {
-            try {
-                const text = await navigator.clipboard.readText();
-                if (text) await saveData(text);
-            } catch (err) { console.error("權限不足"); }
-        };
-
-        // --- 2. 監聽與渲染 ---
+        // --- 3. 監聽與渲染 ---
         onSnapshot(query(notesCol, orderBy("createdAt", "desc")), (snapshot) => {
             notesList.innerHTML = '';
             loadedNotes = [];
@@ -113,26 +147,23 @@
                 loadedNotes.push(note);
                 renderNote(note.id, note.content);
             });
-            // 渲染後觸發所有 textarea 高度調整
-            setTimeout(() => {
-                document.querySelectorAll('.auto-height').forEach(el => autoHeight(el));
-            }, 100);
+            setTimeout(() => document.querySelectorAll('.auto-height').forEach(el => autoHeight(el)), 100);
             updateBatchUI();
         });
 
         function renderNote(id, content) {
             const div = document.createElement('div');
-            div.className = "note-card bg-white p-5 rounded-2xl shadow-sm border-2 border-transparent flex items-start gap-4 transition-all";
+            div.className = "note-card bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-3 transition-all";
             div.innerHTML = `
                 <input type="checkbox" class="note-checkbox checkbox-custom mt-2" value="${id}" onchange="updateBatchUI()">
-                <div class="flex-1">
-                    <textarea id="text-${id}" oninput="autoHeight(this)" class="auto-height w-full p-2 text-xl text-gray-800 bg-transparent border-none focus:ring-0 resize-none font-medium" rows="1">${content}</textarea>
-                    <div class="flex justify-end gap-4 mt-6">
-                        <button onclick="updateNote('${id}', this)" class="flex-1 bg-green-50 text-green-600 font-black py-4 rounded-xl border-2 border-green-200 text-xl active:bg-green-200 transition">
-                            確認修改
+                <div class="flex-1 min-w-0">
+                    <textarea id="text-${id}" oninput="autoHeight(this)" class="auto-height w-full p-2 text-lg text-gray-800 bg-transparent border-none focus:ring-0 resize-none font-medium" rows="1">${content}</textarea>
+                    <div class="flex justify-end gap-3 mt-4">
+                        <button onclick="updateNote('${id}', this)" class="flex-1 bg-green-50 text-green-600 font-bold py-3 rounded-lg border border-green-200 active:bg-green-200 transition text-sm">
+                            修改
                         </button>
-                        <button onclick="deleteNote('${id}')" class="flex-1 bg-red-50 text-red-600 font-black py-4 rounded-xl border-2 border-red-200 text-xl active:bg-red-200 transition">
-                            刪除紀錄
+                        <button onclick="deleteNote('${id}')" class="flex-1 bg-red-50 text-red-600 font-bold py-3 rounded-lg border border-red-200 active:bg-red-200 transition text-sm">
+                            刪除
                         </button>
                     </div>
                 </div>
@@ -140,7 +171,7 @@
             notesList.appendChild(div);
         }
 
-        // --- 3. 批量操作 ---
+        // --- 4. 批量操作 ---
         window.toggleSelectAll = () => {
             const checkboxes = document.querySelectorAll('.note-checkbox');
             const allChecked = Array.from(checkboxes).every(cb => cb.checked);
@@ -151,14 +182,21 @@
         window.updateBatchUI = () => {
             const checkboxes = document.querySelectorAll('.note-checkbox');
             const selected = document.querySelectorAll('.note-checkbox:checked');
-            document.getElementById('selectedCount').innerText = `已選取 ${selected.length} 項`;
             
+            document.getElementById('selectedCount').innerText = `${selected.length} 項`;
+            
+            if (selected.length > 0) {
+                batchBar.classList.remove('hidden');
+            } else {
+                batchBar.classList.add('hidden');
+            }
+
             if (checkboxes.length > 0 && selected.length === checkboxes.length) {
-                selectAllBtn.innerText = "取消全選";
-                selectAllBtn.classList.add('bg-blue-500');
+                selectAllBtn.innerText = "取消";
+                selectAllBtn.classList.add('bg-gray-500');
             } else {
                 selectAllBtn.innerText = "全選";
-                selectAllBtn.classList.remove('bg-blue-500');
+                selectAllBtn.classList.remove('bg-gray-500');
             }
         };
 
@@ -166,44 +204,38 @@
             const selectedIds = Array.from(document.querySelectorAll('.note-checkbox:checked')).map(cb => cb.value);
             if (selectedIds.length === 0) return;
 
-            const selectedData = loadedNotes
-                .filter(note => selectedIds.includes(note.id))
-                .reverse(); 
-
+            const selectedData = loadedNotes.filter(note => selectedIds.includes(note.id)).reverse(); 
             const finalText = selectedData.map(note => note.content).join('\n');
             
             navigator.clipboard.writeText(finalText).then(() => {
                 const btn = document.getElementById('copyBatchBtn');
                 const oldText = btn.innerText;
-                btn.innerText = "已複製！";
-                btn.style.backgroundColor = "#10b981";
-                btn.style.color = "white";
+                btn.innerText = "OK!";
+                btn.classList.add('bg-green-500');
                 setTimeout(() => {
                     btn.innerText = oldText;
-                    btn.style.backgroundColor = "white";
-                    btn.style.color = "#2563eb";
-                }, 800);
+                    btn.classList.remove('bg-green-500');
+                }, 1000);
             });
         };
 
         window.batchDelete = async () => {
-            if (!confirm(`確定要刪除這 ${document.querySelectorAll('.note-checkbox:checked').length} 項紀錄嗎？`)) return;
+            if (!confirm(`確定刪除 ${document.querySelectorAll('.note-checkbox:checked').length} 項？`)) return;
             const selected = document.querySelectorAll('.note-checkbox:checked');
             const batch = writeBatch(db);
             selected.forEach(cb => batch.delete(doc(db, "notes", cb.value)));
             await batch.commit();
         };
 
-        // --- 4. 單項操作 ---
         window.updateNote = async (id, btn) => {
             const newContent = document.getElementById(`text-${id}`).value;
             await updateDoc(doc(db, "notes", id), { content: newContent });
-            btn.innerText = "已儲存！";
-            setTimeout(() => btn.innerText = "確認修改", 800);
+            btn.innerText = "OK";
+            setTimeout(() => btn.innerText = "修改", 800);
         };
 
         window.deleteNote = async (id) => {
-            if (confirm("確定刪除此紀錄？")) await deleteDoc(doc(db, "notes", id));
+            if (confirm("刪除？")) await deleteDoc(doc(db, "notes", id));
         };
     </script>
 </body>
