@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>極速雲端剪貼簿 (按鈕切換版)</title>
+    <title>極速雲端剪貼簿 (多重分類版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -19,7 +19,8 @@
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        .category-radio:checked + label {
+        /* 複選框樣式優化 */
+        .cat-checkbox:checked + label {
             background-color: #3b82f6; color: white; border-color: #3b82f6;
         }
     </style>
@@ -29,28 +30,25 @@
     <div class="max-w-3xl mx-auto p-3 md:p-4">
         <header class="py-4 text-center">
             <h1 class="text-2xl md:text-3xl font-extrabold text-blue-700">雲端剪貼簿</h1>
-            <p class="text-xs text-gray-500 mt-1">手動儲存．數字自動分類．快速切換</p>
+            <p class="text-xs text-gray-500 mt-1">手動儲存．數字自動分類．多重標籤</p>
         </header>
 
         <div class="bg-white rounded-2xl shadow-md p-4 mb-4 border border-blue-100">
             
             <div class="flex gap-2 mb-4 overflow-x-auto hide-scrollbar pb-1" id="inputCategoryGroup">
-                <input type="radio" name="newCategory" id="cat-none" value="" class="hidden category-radio" checked>
-                <label for="cat-none" class="px-3 py-1.5 rounded-full border border-gray-300 text-gray-600 text-sm font-bold whitespace-nowrap cursor-pointer transition select-none">無分類</label>
-
-                <input type="radio" name="newCategory" id="cat-personal" value="個人" class="hidden category-radio">
+                <input type="checkbox" id="cat-personal" value="個人" class="hidden cat-checkbox">
                 <label for="cat-personal" class="px-3 py-1.5 rounded-full border border-gray-300 text-gray-600 text-sm font-bold whitespace-nowrap cursor-pointer transition select-none">個人</label>
 
-                <input type="radio" name="newCategory" id="cat-family" value="家庭" class="hidden category-radio">
+                <input type="checkbox" id="cat-family" value="家庭" class="hidden cat-checkbox">
                 <label for="cat-family" class="px-3 py-1.5 rounded-full border border-gray-300 text-gray-600 text-sm font-bold whitespace-nowrap cursor-pointer transition select-none">家庭</label>
 
-                <input type="radio" name="newCategory" id="cat-class" value="班級" class="hidden category-radio">
+                <input type="checkbox" id="cat-class" value="班級" class="hidden cat-checkbox">
                 <label for="cat-class" class="px-3 py-1.5 rounded-full border border-gray-300 text-gray-600 text-sm font-bold whitespace-nowrap cursor-pointer transition select-none">班級</label>
 
-                <input type="radio" name="newCategory" id="cat-daji" value="大吉" class="hidden category-radio">
+                <input type="checkbox" id="cat-daji" value="大吉" class="hidden cat-checkbox">
                 <label for="cat-daji" class="px-3 py-1.5 rounded-full border border-gray-300 text-gray-600 text-sm font-bold whitespace-nowrap cursor-pointer transition select-none">大吉</label>
 
-                <input type="radio" name="newCategory" id="cat-todo" value="代辦" class="hidden category-radio">
+                <input type="checkbox" id="cat-todo" value="代辦" class="hidden cat-checkbox">
                 <label for="cat-todo" class="px-3 py-1.5 rounded-full border border-gray-300 text-gray-600 text-sm font-bold whitespace-nowrap cursor-pointer transition select-none">代辦</label>
             </div>
 
@@ -131,19 +129,21 @@
             el.style.height = el.scrollHeight + 'px';
         };
 
-        // 取得目前選中的分類 (UI選單)
-        const getSelectedCategory = () => {
-            const selected = document.querySelector('input[name="newCategory"]:checked');
-            return selected ? selected.value : "";
+        // 取得目前選中的分類 (複選)
+        const getSelectedCategories = () => {
+            const checkedBoxes = document.querySelectorAll('.cat-checkbox:checked');
+            return Array.from(checkedBoxes).map(cb => cb.value);
         };
 
-        // --- 核心功能：智慧分類處理 ---
+        // --- 核心功能：智慧分類處理 (支援多重) ---
         function processNoteContent(rawText) {
             let content = rawText.trim();
             if (!content) return null;
 
-            let category = getSelectedCategory(); 
+            // 取得 UI 上勾選的分類
+            let categories = getSelectedCategories(); 
             
+            // 檢查第一個字元 (數字自動分類)
             const firstChar = content.charAt(0);
             const map = {
                 '1': '個人',
@@ -154,11 +154,16 @@
             };
 
             if (map[firstChar]) {
-                category = map[firstChar];
+                const autoCat = map[firstChar];
+                // 如果陣列裡沒有這個分類，就加入 (避免重複)
+                if (!categories.includes(autoCat)) {
+                    categories.push(autoCat);
+                }
+                // 清除數字前綴
                 content = content.substring(1).replace(/^[:.、\s]+/, '');
             }
 
-            return { content, category };
+            return { content, categories };
         }
 
         // --- 1. 極速一鍵貼上並儲存 ---
@@ -175,7 +180,7 @@
                     
                     await addDoc(notesCol, { 
                         content: processed.content, 
-                        category: processed.category,
+                        category: processed.categories, // 存成陣列
                         createdAt: serverTimestamp(),
                         order: Date.now() * -1
                     });
@@ -206,15 +211,17 @@
             
             await addDoc(notesCol, { 
                 content: processed.content, 
-                category: processed.category,
+                category: processed.categories,
                 createdAt: serverTimestamp(),
                 order: Date.now() * -1
             });
             noteInput.value = '';
             noteInput.style.height = 'auto';
+            // 清除勾選
+            document.querySelectorAll('.cat-checkbox').forEach(cb => cb.checked = false);
         };
 
-        // --- 3. 篩選功能 ---
+        // --- 3. 篩選功能 (多重分類適配) ---
         window.setFilter = (filter) => {
             currentFilter = filter;
             document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -232,10 +239,18 @@
             loadedNotes = [];
             snapshot.forEach((docSnap) => {
                 const data = docSnap.data();
+                // 資料正規化：舊資料是字串，轉為陣列；新資料是陣列，保持原樣
+                let catArray = [];
+                if (Array.isArray(data.category)) {
+                    catArray = data.category;
+                } else if (data.category) {
+                    catArray = [data.category];
+                }
+
                 loadedNotes.push({ 
                     id: docSnap.id, 
                     content: data.content, 
-                    category: data.category || "", 
+                    category: catArray, 
                     order: data.order || 0
                 });
             });
@@ -248,35 +263,33 @@
             
             const filtered = loadedNotes.filter(note => {
                 if (currentFilter === 'all') return true;
-                if (currentFilter === 'uncategorized') return !note.category;
-                return note.category === currentFilter;
+                if (currentFilter === 'uncategorized') return note.category.length === 0;
+                // 只要陣列中包含該分類就顯示
+                return note.category.includes(currentFilter);
             });
 
             if (filtered.length === 0) {
-                notesList.innerHTML = `<div class="text-center text-gray-400 py-8">沒有${currentFilter === 'all' ? '' : '此分類的'}資料</div>`;
+                notesList.innerHTML = `<div class="text-center text-gray-400 py-8">沒有符合條件的資料</div>`;
                 return;
             }
 
-            // 修改處：將下拉選單改為按鈕列表
             filtered.forEach(note => {
                 const div = document.createElement('div');
                 div.className = "note-card bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-3 relative group";
                 div.dataset.id = note.id; 
 
-                // 定義分類與顯示名稱
-                const categories = ["", "個人", "家庭", "班級", "大吉", "代辦"];
-                const labels = ["無", "個人", "家庭", "班級", "大吉", "代辦"];
+                const labels = ["個人", "家庭", "班級", "大吉", "代辦"];
 
-                // 產生按鈕 HTML
-                let categoryButtonsHtml = categories.map((cat, idx) => {
-                    const isSelected = note.category === cat;
+                // 產生按鈕 HTML (多重選擇)
+                let categoryButtonsHtml = labels.map(cat => {
+                    const isSelected = note.category.includes(cat);
                     const style = isSelected 
                         ? "bg-blue-500 text-white border-blue-600 shadow-sm" 
                         : "bg-white text-gray-400 border-gray-200 hover:bg-gray-50";
                     
-                    return `<button onclick="updateCategory('${note.id}', '${cat}')" 
+                    return `<button onclick="toggleNoteCategory('${note.id}', '${cat}')" 
                         class="px-2 py-1 rounded text-[11px] font-bold border transition ${style}">
-                        ${labels[idx]}
+                        ${cat}
                     </button>`;
                 }).join('');
 
@@ -363,8 +376,20 @@
             }
         };
 
-        window.updateCategory = async (id, newCategory) => {
-            await updateDoc(doc(db, "notes", id), { category: newCategory });
+        // --- 切換分類 (Toggle) ---
+        window.toggleNoteCategory = async (id, targetCat) => {
+            const note = loadedNotes.find(n => n.id === id);
+            let currentCats = [...note.category]; // 複製一份
+            
+            if (currentCats.includes(targetCat)) {
+                // 如果已有，則移除
+                currentCats = currentCats.filter(c => c !== targetCat);
+            } else {
+                // 如果沒有，則加入
+                currentCats.push(targetCat);
+            }
+            
+            await updateDoc(doc(db, "notes", id), { category: currentCats });
         };
 
         window.copySingle = (id) => {
@@ -401,7 +426,6 @@
             const selectedIds = Array.from(document.querySelectorAll('.note-checkbox:checked')).map(cb => cb.value);
             if (selectedIds.length === 0) return;
 
-            // 新增代辦到複製排序
             const targetCategories = ["個人", "家庭", "班級", "大吉", "代辦", ""]; 
             const groups = {};
             targetCategories.forEach(c => groups[c] = []);
@@ -411,12 +435,17 @@
                 if (selectedIds.includes(id)) {
                     const content = card.querySelector('textarea').value;
                     const note = loadedNotes.find(n => n.id === id);
-                    const cat = note ? (note.category || "") : "";
-                    if (groups[cat]) {
-                        groups[cat].push(content);
-                    } else {
-                        groups[""].push(content);
-                    }
+                    const cats = (note && note.category.length > 0) ? note.category : [""];
+                    
+                    // 將筆記內容放入它所屬的每一個分類群組中
+                    cats.forEach(cat => {
+                         if (groups[cat]) {
+                            groups[cat].push(content);
+                        } else {
+                            // 防呆：如果是未定義的分類
+                            groups[""].push(content);
+                        }
+                    });
                 }
             });
 
