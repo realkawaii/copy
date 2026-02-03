@@ -3,61 +3,94 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>極速雲端剪貼簿</title>
+    <title>極速雲端剪貼簿 (分類+排序版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        /* 禁止手機雙擊縮放，提升操作手感 */
         body { touch-action: manipulation; }
-        .note-card:hover { border-color: #3b82f6; }
-        .checkbox-custom { width: 30px; height: 30px; cursor: pointer; flex-shrink: 0; }
+        .note-card { transition: transform 0.2s, box-shadow 0.2s; }
+        .note-card.sortable-ghost { opacity: 0.4; background: #e0f2fe; }
+        .note-card.sortable-drag { background: #fff; transform: scale(1.02); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+        .checkbox-custom { width: 24px; height: 24px; cursor: pointer; flex-shrink: 0; }
         .auto-height { overflow-y: hidden; height: auto; min-height: 50px; }
-        /* 按鈕點擊時的下壓效果 */
         button:active { transform: scale(0.97); }
+        
+        /* 隱藏捲軸但保持功能 */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* 分類標籤樣式 */
+        .category-radio:checked + label {
+            background-color: #3b82f6; color: white; border-color: #3b82f6;
+        }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen pb-24">
+<body class="bg-gray-100 min-h-screen pb-32">
 
     <div class="max-w-3xl mx-auto p-3 md:p-4">
         <header class="py-4 text-center">
             <h1 class="text-2xl md:text-3xl font-extrabold text-blue-700">雲端剪貼簿</h1>
-            <p class="text-xs text-gray-500 mt-1">手機專用極速版</p>
+            <p class="text-xs text-gray-500 mt-1">分類管理．自動儲存．拖曳排序</p>
         </header>
 
-        <div class="bg-white rounded-2xl shadow-md p-4 mb-6 sticky top-2 z-30 border border-blue-100">
+        <div class="bg-white rounded-2xl shadow-md p-4 mb-4 border border-blue-100">
             
-            <button id="pasteSaveBtn" class="w-full bg-green-500 hover:bg-green-600 text-white font-black py-5 rounded-xl shadow-lg transition flex items-center justify-center gap-3 text-xl mb-4">
+            <div class="flex gap-2 mb-4 overflow-x-auto hide-scrollbar pb-1" id="inputCategoryGroup">
+                <input type="radio" name="newCategory" id="cat-none" value="" class="hidden category-radio" checked>
+                <label for="cat-none" class="px-3 py-1.5 rounded-full border border-gray-300 text-gray-600 text-sm font-bold whitespace-nowrap cursor-pointer transition select-none">無分類</label>
+
+                <input type="radio" name="newCategory" id="cat-personal" value="個人" class="hidden category-radio">
+                <label for="cat-personal" class="px-3 py-1.5 rounded-full border border-gray-300 text-gray-600 text-sm font-bold whitespace-nowrap cursor-pointer transition select-none">個人</label>
+
+                <input type="radio" name="newCategory" id="cat-family" value="家庭" class="hidden category-radio">
+                <label for="cat-family" class="px-3 py-1.5 rounded-full border border-gray-300 text-gray-600 text-sm font-bold whitespace-nowrap cursor-pointer transition select-none">家庭</label>
+
+                <input type="radio" name="newCategory" id="cat-class" value="班級" class="hidden category-radio">
+                <label for="cat-class" class="px-3 py-1.5 rounded-full border border-gray-300 text-gray-600 text-sm font-bold whitespace-nowrap cursor-pointer transition select-none">班級</label>
+
+                <input type="radio" name="newCategory" id="cat-daji" value="大吉" class="hidden category-radio">
+                <label for="cat-daji" class="px-3 py-1.5 rounded-full border border-gray-300 text-gray-600 text-sm font-bold whitespace-nowrap cursor-pointer transition select-none">大吉</label>
+            </div>
+
+            <button id="pasteSaveBtn" class="w-full bg-green-500 hover:bg-green-600 text-white font-black py-4 rounded-xl shadow-lg transition flex items-center justify-center gap-3 text-lg mb-3">
                 <i class="fas fa-clipboard-check text-2xl"></i>
                 <span id="pasteBtnText">一鍵貼上並儲存</span>
             </button>
 
-            <details class="group">
-                <summary class="list-none cursor-pointer text-center text-gray-400 text-sm font-medium hover:text-blue-500 transition">
-                    需要手動打字？點此展開 <i class="fas fa-chevron-down ml-1 group-open:rotate-180 transition-transform"></i>
-                </summary>
-                <div class="mt-3 animate-fade-in">
-                    <textarea id="noteInput" oninput="autoHeight(this)" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 text-lg auto-height" placeholder="在此輸入文字..."></textarea>
-                    <button id="saveBtn" class="w-full mt-3 bg-blue-600 text-white font-bold py-3 rounded-xl">
-                        <i class="fas fa-save"></i> 手動儲存
-                    </button>
-                </div>
-            </details>
+            <div class="flex gap-2">
+                <textarea id="noteInput" oninput="autoHeight(this)" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 text-lg auto-height" placeholder="手動輸入..."></textarea>
+                <button id="saveBtn" class="bg-blue-600 text-white font-bold px-5 rounded-xl whitespace-nowrap shadow-md">
+                    <i class="fas fa-save"></i> 儲存
+                </button>
+            </div>
         </div>
 
-        <div id="batchBar" class="hidden fixed bottom-6 left-4 right-4 z-40 bg-gray-900/90 backdrop-blur text-white p-4 rounded-2xl shadow-2xl flex justify-between items-center animate-slide-up">
+        <div class="sticky top-0 z-30 bg-gray-100 pt-2 pb-3">
+            <div class="flex gap-2 overflow-x-auto hide-scrollbar" id="filterContainer">
+                <button onclick="setFilter('all')" class="filter-btn bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="all">全部</button>
+                <button onclick="setFilter('個人')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="個人">個人</button>
+                <button onclick="setFilter('家庭')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="家庭">家庭</button>
+                <button onclick="setFilter('班級')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="班級">班級</button>
+                <button onclick="setFilter('大吉')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="大吉">大吉</button>
+                <button onclick="setFilter('uncategorized')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="uncategorized">無分類</button>
+            </div>
+        </div>
+
+        <div id="batchBar" class="hidden fixed bottom-6 left-4 right-4 z-40 bg-gray-900/95 backdrop-blur text-white p-4 rounded-2xl shadow-2xl flex justify-between items-center animate-slide-up">
             <div class="flex items-center gap-3">
-                <button id="selectAllBtn" onclick="toggleSelectAll()" class="bg-gray-700 px-4 py-2 rounded-lg font-bold text-sm">
+                <button id="selectAllBtn" onclick="toggleSelectAll()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg font-bold text-sm">
                     全選
                 </button>
                 <span id="selectedCount" class="font-bold text-sm">0 項</span>
             </div>
             <div class="flex gap-2">
-                <button id="copyBatchBtn" onclick="batchCopy()" class="bg-blue-500 text-white px-5 py-2 rounded-xl font-bold shadow-md">複製</button>
-                <button onclick="batchDelete()" class="bg-red-500 text-white px-5 py-2 rounded-xl font-bold shadow-md">刪除</button>
+                <button id="copyBatchBtn" onclick="batchCopy()" class="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-xl font-bold shadow-md">複製</button>
+                <button onclick="batchDelete()" class="bg-red-500 hover:bg-red-600 text-white px-5 py-2 rounded-xl font-bold shadow-md">刪除</button>
             </div>
         </div>
 
-        <div id="notesList" class="space-y-4 px-1">
+        <div id="notesList" class="space-y-3 px-1 pb-10">
             <div class="text-center text-gray-400 py-10">資料載入中...</div>
         </div>
     </div>
@@ -89,42 +122,50 @@
         const pasteBtnText = document.getElementById('pasteBtnText');
         
         let loadedNotes = [];
+        let currentFilter = 'all';
+        let saveTimers = {}; // 用於防抖動自動儲存
 
         window.autoHeight = (el) => {
             el.style.height = 'auto';
             el.style.height = el.scrollHeight + 'px';
         };
 
+        // 取得目前選中的分類
+        const getSelectedCategory = () => {
+            const selected = document.querySelector('input[name="newCategory"]:checked');
+            return selected ? selected.value : "";
+        };
+
         // --- 1. 極速一鍵貼上並儲存 ---
         pasteBtn.onclick = async () => {
             try {
-                // 視覺回饋：轉圈圈
                 const originalIcon = pasteBtn.innerHTML;
-                pasteBtnText.innerText = "讀取剪貼簿...";
-                
-                // 嘗試讀取剪貼簿
+                pasteBtnText.innerText = "讀取...";
                 const text = await navigator.clipboard.readText();
                 
                 if (text && text.trim().length > 0) {
                     pasteBtnText.innerText = "儲存中...";
-                    await addDoc(notesCol, { content: text, createdAt: serverTimestamp() });
+                    // 新增時加入 category 和 order (order 使用負的時間戳記以保持最新在最前，除非被手動排序)
+                    await addDoc(notesCol, { 
+                        content: text, 
+                        category: getSelectedCategory(),
+                        createdAt: serverTimestamp(),
+                        order: Date.now() * -1 // 預設新項目在最上方
+                    });
                     
-                    // 成功回饋：綠色勾勾
-                    pasteBtn.classList.replace('bg-green-500', 'bg-blue-600'); // 變色
+                    pasteBtn.classList.replace('bg-green-500', 'bg-blue-600');
                     pasteBtn.innerHTML = '<i class="fas fa-check-circle text-2xl"></i><span>已儲存！</span>';
-                    
-                    // 1.5秒後復原
                     setTimeout(() => {
                         pasteBtn.classList.replace('bg-blue-600', 'bg-green-500');
                         pasteBtn.innerHTML = originalIcon;
                     }, 1500);
                 } else {
-                    alert("剪貼簿是空的，請先複製文字喔！");
+                    alert("剪貼簿是空的");
                     pasteBtnText.innerText = "一鍵貼上並儲存";
                 }
             } catch (err) {
                 console.error(err);
-                alert("無法存取剪貼簿。\n\n請確認：\n1. 瀏覽器有給予「貼上」權限\n2. 若是 iPhone，請在詢問時點選「允許」");
+                alert("無法存取剪貼簿，請手動貼上。");
                 pasteBtnText.innerText = "一鍵貼上並儲存";
             }
         };
@@ -133,45 +174,193 @@
         document.getElementById('saveBtn').onclick = async () => {
             const text = noteInput.value.trim();
             if (!text) return;
-            await addDoc(notesCol, { content: text, createdAt: serverTimestamp() });
+            await addDoc(notesCol, { 
+                content: text, 
+                category: getSelectedCategory(),
+                createdAt: serverTimestamp(),
+                order: Date.now() * -1
+            });
             noteInput.value = '';
             noteInput.style.height = 'auto';
         };
 
-        // --- 3. 監聽與渲染 ---
-        onSnapshot(query(notesCol, orderBy("createdAt", "desc")), (snapshot) => {
-            notesList.innerHTML = '';
+        // --- 3. 篩選功能 ---
+        window.setFilter = (filter) => {
+            currentFilter = filter;
+            // 更新按鈕樣式
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                if (btn.dataset.filter === filter) {
+                    btn.className = "filter-btn bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition";
+                } else {
+                    btn.className = "filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition hover:bg-gray-50";
+                }
+            });
+            renderAllNotes();
+        };
+
+        // --- 4. 監聽與渲染 ---
+        // 使用 order 欄位排序
+        onSnapshot(query(notesCol, orderBy("order", "asc")), (snapshot) => {
             loadedNotes = [];
             snapshot.forEach((docSnap) => {
-                const note = { id: docSnap.id, ...docSnap.data() };
-                loadedNotes.push(note);
-                renderNote(note.id, note.content);
+                const data = docSnap.data();
+                // 兼容舊資料 (舊資料沒有 category 或 order)
+                loadedNotes.push({ 
+                    id: docSnap.id, 
+                    content: data.content, 
+                    category: data.category || "", 
+                    order: data.order || 0
+                });
             });
-            setTimeout(() => document.querySelectorAll('.auto-height').forEach(el => autoHeight(el)), 100);
+            renderAllNotes();
             updateBatchUI();
         });
 
-        function renderNote(id, content) {
-            const div = document.createElement('div');
-            div.className = "note-card bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-3 transition-all";
-            div.innerHTML = `
-                <input type="checkbox" class="note-checkbox checkbox-custom mt-2" value="${id}" onchange="updateBatchUI()">
-                <div class="flex-1 min-w-0">
-                    <textarea id="text-${id}" oninput="autoHeight(this)" class="auto-height w-full p-2 text-lg text-gray-800 bg-transparent border-none focus:ring-0 resize-none font-medium" rows="1">${content}</textarea>
-                    <div class="flex justify-end gap-3 mt-4">
-                        <button onclick="updateNote('${id}', this)" class="flex-1 bg-green-50 text-green-600 font-bold py-3 rounded-lg border border-green-200 active:bg-green-200 transition text-sm">
-                            修改
-                        </button>
-                        <button onclick="deleteNote('${id}')" class="flex-1 bg-red-50 text-red-600 font-bold py-3 rounded-lg border border-red-200 active:bg-red-200 transition text-sm">
-                            刪除
-                        </button>
+        function renderAllNotes() {
+            notesList.innerHTML = '';
+            
+            // 根據篩選器過濾
+            const filtered = loadedNotes.filter(note => {
+                if (currentFilter === 'all') return true;
+                if (currentFilter === 'uncategorized') return !note.category;
+                return note.category === currentFilter;
+            });
+
+            if (filtered.length === 0) {
+                notesList.innerHTML = `<div class="text-center text-gray-400 py-8">沒有${currentFilter === 'all' ? '' : '此分類的'}資料</div>`;
+                return;
+            }
+
+            filtered.forEach(note => {
+                const div = document.createElement('div');
+                div.className = "note-card bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-3 relative group";
+                div.dataset.id = note.id; // 用於拖曳識別
+
+                // 分類選擇 HTML
+                const categories = ["", "個人", "家庭", "班級", "大吉"];
+                let categoryOptions = categories.map(cat => 
+                    `<option value="${cat}" ${note.category === cat ? 'selected' : ''}>${cat || '無分類'}</option>`
+                ).join('');
+
+                div.innerHTML = `
+                    <div class="flex flex-col items-center gap-2 mt-2">
+                        <div class="drag-handle cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 px-1">
+                            <i class="fas fa-bars"></i>
+                        </div>
+                        <input type="checkbox" class="note-checkbox checkbox-custom" value="${note.id}" onchange="updateBatchUI()">
                     </div>
-                </div>
-            `;
-            notesList.appendChild(div);
+
+                    <div class="flex-1 min-w-0">
+                        <div class="flex justify-between items-center mb-1">
+                            <select onchange="updateCategory('${note.id}', this.value)" class="text-xs bg-gray-50 border border-gray-200 rounded px-2 py-1 text-gray-600 outline-none focus:border-blue-500">
+                                ${categoryOptions}
+                            </select>
+                            <span id="status-${note.id}" class="text-xs text-green-500 font-bold opacity-0 transition-opacity duration-500">已儲存</span>
+                        </div>
+
+                        <textarea id="text-${note.id}" oninput="autoSave('${note.id}', this); autoHeight(this)" 
+                            class="auto-height w-full p-2 text-lg text-gray-800 bg-transparent border-b border-transparent focus:border-blue-200 focus:bg-gray-50 rounded transition-colors resize-none font-medium outline-none" 
+                            rows="1">${note.content}</textarea>
+                        
+                        <div class="flex justify-end gap-3 mt-3">
+                            <button onclick="copySingle('${note.id}')" class="text-gray-400 hover:text-blue-500 p-2 transition" title="複製">
+                                <i class="far fa-copy fa-lg"></i>
+                            </button>
+                            <button onclick="deleteNote('${note.id}')" class="text-gray-400 hover:text-red-500 p-2 transition" title="刪除">
+                                <i class="far fa-trash-alt fa-lg"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                notesList.appendChild(div);
+            });
+
+            // 初始化拖曳功能
+            initSortable();
+            // 調整高度
+            setTimeout(() => document.querySelectorAll('.auto-height').forEach(el => autoHeight(el)), 50);
         }
 
-        // --- 4. 批量操作 ---
+        // --- 5. 拖曳排序初始化 ---
+        function initSortable() {
+            new Sortable(notesList, {
+                handle: '.drag-handle', // 指定只有按住漢堡圖示才能拖曳
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                dragClass: 'sortable-drag',
+                onEnd: async function (evt) {
+                    // 拖曳結束後，計算新的順序並更新到 Firebase
+                    // 策略：取得當前 DOM 順序，重新分配 order
+                    // 注意：這會觸發大量的寫入，但對於個人剪貼簿規模通常沒問題
+                    const items = Array.from(notesList.children);
+                    if (items.length < 2) return;
+
+                    const batch = writeBatch(db);
+                    items.forEach((item, index) => {
+                        const id = item.dataset.id;
+                        if (id) {
+                            // 使用 index 作為新的 order (越小越上面)
+                            const ref = doc(db, "notes", id);
+                            batch.update(ref, { order: index });
+                        }
+                    });
+                    
+                    // 為了避免畫面閃爍，暫時不重新渲染，等待 Firebase snapshot 更新
+                    await batch.commit();
+                }
+            });
+        }
+
+        // --- 6. 自動儲存邏輯 ---
+        window.autoSave = (id, el) => {
+            const statusEl = document.getElementById(`status-${id}`);
+            statusEl.innerText = "儲存中...";
+            statusEl.classList.remove('opacity-0');
+            statusEl.classList.replace('text-green-500', 'text-gray-400');
+
+            // 防抖動：停止打字 1 秒後才寫入資料庫
+            clearTimeout(saveTimers[id]);
+            saveTimers[id] = setTimeout(async () => {
+                const newContent = el.value;
+                await updateDoc(doc(db, "notes", id), { content: newContent });
+                
+                statusEl.innerText = "已儲存";
+                statusEl.classList.replace('text-gray-400', 'text-green-500');
+                // 2秒後淡出
+                setTimeout(() => {
+                    statusEl.classList.add('opacity-0');
+                }, 2000);
+            }, 1000);
+        };
+
+        // --- 7. 更新分類 ---
+        window.updateCategory = async (id, newCategory) => {
+            const statusEl = document.getElementById(`status-${id}`);
+            statusEl.innerText = "分類更新中...";
+            statusEl.classList.remove('opacity-0');
+            
+            await updateDoc(doc(db, "notes", id), { category: newCategory });
+            
+            statusEl.innerText = "已更新";
+            setTimeout(() => statusEl.classList.add('opacity-0'), 1500);
+        };
+
+        // --- 8. 個別複製 ---
+        window.copySingle = (id) => {
+            const text = document.getElementById(`text-${id}`).value;
+            navigator.clipboard.writeText(text).then(() => {
+                const statusEl = document.getElementById(`status-${id}`);
+                statusEl.innerText = "已複製！";
+                statusEl.classList.remove('opacity-0');
+                statusEl.classList.replace('text-green-500', 'text-blue-500');
+                setTimeout(() => {
+                    statusEl.classList.add('opacity-0');
+                    statusEl.classList.replace('text-blue-500', 'text-green-500');
+                }, 1500);
+            });
+        };
+
+        // --- 9. 批量操作 ---
         window.toggleSelectAll = () => {
             const checkboxes = document.querySelectorAll('.note-checkbox');
             const allChecked = Array.from(checkboxes).every(cb => cb.checked);
@@ -193,10 +382,8 @@
 
             if (checkboxes.length > 0 && selected.length === checkboxes.length) {
                 selectAllBtn.innerText = "取消";
-                selectAllBtn.classList.add('bg-gray-500');
             } else {
                 selectAllBtn.innerText = "全選";
-                selectAllBtn.classList.remove('bg-gray-500');
             }
         };
 
@@ -204,17 +391,20 @@
             const selectedIds = Array.from(document.querySelectorAll('.note-checkbox:checked')).map(cb => cb.value);
             if (selectedIds.length === 0) return;
 
-            const selectedData = loadedNotes.filter(note => selectedIds.includes(note.id)).reverse(); 
-            const finalText = selectedData.map(note => note.content).join('\n');
+            // 依照目前畫面順序複製
+            const textToCopy = Array.from(document.querySelectorAll('.note-card'))
+                .filter(card => selectedIds.includes(card.dataset.id))
+                .map(card => card.querySelector('textarea').value)
+                .join('\n\n');
             
-            navigator.clipboard.writeText(finalText).then(() => {
+            navigator.clipboard.writeText(textToCopy).then(() => {
                 const btn = document.getElementById('copyBatchBtn');
                 const oldText = btn.innerText;
-                btn.innerText = "OK!";
-                btn.classList.add('bg-green-500');
+                btn.innerText = "完成!";
+                btn.classList.replace('bg-blue-500', 'bg-green-500');
                 setTimeout(() => {
                     btn.innerText = oldText;
-                    btn.classList.remove('bg-green-500');
+                    btn.classList.replace('bg-green-500', 'bg-blue-500');
                 }, 1000);
             });
         };
@@ -227,15 +417,8 @@
             await batch.commit();
         };
 
-        window.updateNote = async (id, btn) => {
-            const newContent = document.getElementById(`text-${id}`).value;
-            await updateDoc(doc(db, "notes", id), { content: newContent });
-            btn.innerText = "OK";
-            setTimeout(() => btn.innerText = "修改", 800);
-        };
-
         window.deleteNote = async (id) => {
-            if (confirm("刪除？")) await deleteDoc(doc(db, "notes", id));
+            if (confirm("確定刪除此筆記？")) await deleteDoc(doc(db, "notes", id));
         };
     </script>
 </body>
