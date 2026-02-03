@@ -372,17 +372,52 @@
             }
         };
 
+        // --- 修改後的批量複製功能 ---
         window.batchCopy = () => {
             const selectedIds = Array.from(document.querySelectorAll('.note-checkbox:checked')).map(cb => cb.value);
             if (selectedIds.length === 0) return;
 
-            const textToCopy = Array.from(document.querySelectorAll('.note-card'))
-                .filter(card => selectedIds.includes(card.dataset.id))
-                .map(card => card.querySelector('textarea').value)
-                .join('\n\n');
+            // 定義類別順序
+            const targetCategories = ["個人", "家庭", "班級", "大吉", ""]; 
+            const groups = {};
+            
+            // 初始化容器
+            targetCategories.forEach(c => groups[c] = []);
+
+            // 依照畫面上的順序讀取 (確保拖曳排序後的順序正確)
+            document.querySelectorAll('.note-card').forEach(card => {
+                const id = card.dataset.id;
+                if (selectedIds.includes(id)) {
+                    // 取得最新的文字框內容
+                    const content = card.querySelector('textarea').value;
+                    // 從 loadedNotes 找回分類資訊
+                    const note = loadedNotes.find(n => n.id === id);
+                    const cat = note ? (note.category || "") : "";
+                    
+                    if (groups[cat]) {
+                        groups[cat].push(content);
+                    } else {
+                        // 若有預期外的分類，歸類到無分類
+                        groups[""].push(content);
+                    }
+                }
+            });
+
+            // 組合最終文字
+            let finalParts = [];
+            targetCategories.forEach(cat => {
+                if (groups[cat] && groups[cat].length > 0) {
+                    const header = cat === "" ? "無分類" : cat;
+                    // 格式：【分類名稱】\n內容\n內容...
+                    const groupText = `【${header}】\n` + groups[cat].join('\n\n');
+                    finalParts.push(groupText);
+                }
+            });
+
+            const textToCopy = finalParts.join('\n\n====================\n\n');
             
             navigator.clipboard.writeText(textToCopy).then(() => {
-                alert("已複製選取項目！");
+                alert("已依分類複製選取項目！");
             });
         };
 
