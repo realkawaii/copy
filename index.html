@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>極速雲端剪貼簿 (智慧分類版)</title>
+    <title>極速雲端剪貼簿 (按鈕切換版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -29,7 +29,7 @@
     <div class="max-w-3xl mx-auto p-3 md:p-4">
         <header class="py-4 text-center">
             <h1 class="text-2xl md:text-3xl font-extrabold text-blue-700">雲端剪貼簿</h1>
-            <p class="text-xs text-gray-500 mt-1">手動儲存．數字自動分類．拖曳排序</p>
+            <p class="text-xs text-gray-500 mt-1">手動儲存．數字自動分類．快速切換</p>
         </header>
 
         <div class="bg-white rounded-2xl shadow-md p-4 mb-4 border border-blue-100">
@@ -142,9 +142,8 @@
             let content = rawText.trim();
             if (!content) return null;
 
-            let category = getSelectedCategory(); // 預設使用UI選的
+            let category = getSelectedCategory(); 
             
-            // 檢查第一個字元
             const firstChar = content.charAt(0);
             const map = {
                 '1': '個人',
@@ -156,8 +155,6 @@
 
             if (map[firstChar]) {
                 category = map[firstChar];
-                // 移除第一個數字，並且移除後續可能的 分隔符 (冒號, 點, 頓號) 或 空白
-                // Regex 解釋: ^ (開頭), . (任意單一字元，這裡指那數字), [:.、\s]* (接著任意數量的分隔符號)
                 content = content.substring(1).replace(/^[:.、\s]+/, '');
             }
 
@@ -260,16 +257,28 @@
                 return;
             }
 
+            // 修改處：將下拉選單改為按鈕列表
             filtered.forEach(note => {
                 const div = document.createElement('div');
                 div.className = "note-card bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-3 relative group";
                 div.dataset.id = note.id; 
 
-                // 分類選擇 HTML (新增代辦)
+                // 定義分類與顯示名稱
                 const categories = ["", "個人", "家庭", "班級", "大吉", "代辦"];
-                let categoryOptions = categories.map(cat => 
-                    `<option value="${cat}" ${note.category === cat ? 'selected' : ''}>${cat || '無分類'}</option>`
-                ).join('');
+                const labels = ["無", "個人", "家庭", "班級", "大吉", "代辦"];
+
+                // 產生按鈕 HTML
+                let categoryButtonsHtml = categories.map((cat, idx) => {
+                    const isSelected = note.category === cat;
+                    const style = isSelected 
+                        ? "bg-blue-500 text-white border-blue-600 shadow-sm" 
+                        : "bg-white text-gray-400 border-gray-200 hover:bg-gray-50";
+                    
+                    return `<button onclick="updateCategory('${note.id}', '${cat}')" 
+                        class="px-2 py-1 rounded text-[11px] font-bold border transition ${style}">
+                        ${labels[idx]}
+                    </button>`;
+                }).join('');
 
                 div.innerHTML = `
                     <div class="flex flex-col items-center gap-2 mt-2">
@@ -280,10 +289,8 @@
                     </div>
 
                     <div class="flex-1 min-w-0">
-                        <div class="flex justify-between items-center mb-1">
-                            <select onchange="updateCategory('${note.id}', this.value)" class="text-xs bg-gray-50 border border-gray-200 rounded px-2 py-1 text-gray-600 outline-none focus:border-blue-500">
-                                ${categoryOptions}
-                            </select>
+                        <div class="flex flex-wrap gap-1 mb-2">
+                            ${categoryButtonsHtml}
                         </div>
 
                         <textarea id="text-${note.id}" oninput="autoHeight(this); showSaveHint('${note.id}')"
