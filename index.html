@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>極速雲端剪貼簿 (手動儲存版)</title>
+    <title>極速雲端剪貼簿 (智慧分類版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -29,7 +29,7 @@
     <div class="max-w-3xl mx-auto p-3 md:p-4">
         <header class="py-4 text-center">
             <h1 class="text-2xl md:text-3xl font-extrabold text-blue-700">雲端剪貼簿</h1>
-            <p class="text-xs text-gray-500 mt-1">手動儲存．分類管理．拖曳排序</p>
+            <p class="text-xs text-gray-500 mt-1">手動儲存．數字自動分類．拖曳排序</p>
         </header>
 
         <div class="bg-white rounded-2xl shadow-md p-4 mb-4 border border-blue-100">
@@ -49,6 +49,9 @@
 
                 <input type="radio" name="newCategory" id="cat-daji" value="大吉" class="hidden category-radio">
                 <label for="cat-daji" class="px-3 py-1.5 rounded-full border border-gray-300 text-gray-600 text-sm font-bold whitespace-nowrap cursor-pointer transition select-none">大吉</label>
+
+                <input type="radio" name="newCategory" id="cat-todo" value="代辦" class="hidden category-radio">
+                <label for="cat-todo" class="px-3 py-1.5 rounded-full border border-gray-300 text-gray-600 text-sm font-bold whitespace-nowrap cursor-pointer transition select-none">代辦</label>
             </div>
 
             <button id="pasteSaveBtn" class="w-full bg-green-500 hover:bg-green-600 text-white font-black py-4 rounded-xl shadow-lg transition flex items-center justify-center gap-3 text-lg mb-3">
@@ -57,7 +60,7 @@
             </button>
 
             <div class="flex gap-2">
-                <textarea id="noteInput" oninput="autoHeight(this)" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 text-lg auto-height" placeholder="手動輸入..."></textarea>
+                <textarea id="noteInput" oninput="autoHeight(this)" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 text-lg auto-height" placeholder="手動輸入 (1:個人, 5:代辦)..."></textarea>
                 <button id="saveBtn" class="bg-blue-600 text-white font-bold px-5 rounded-xl whitespace-nowrap shadow-md">
                     <i class="fas fa-save"></i> 儲存
                 </button>
@@ -71,6 +74,7 @@
                 <button onclick="setFilter('家庭')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="家庭">家庭</button>
                 <button onclick="setFilter('班級')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="班級">班級</button>
                 <button onclick="setFilter('大吉')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="大吉">大吉</button>
+                <button onclick="setFilter('代辦')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="代辦">代辦</button>
                 <button onclick="setFilter('uncategorized')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="uncategorized">無分類</button>
             </div>
         </div>
@@ -127,11 +131,38 @@
             el.style.height = el.scrollHeight + 'px';
         };
 
-        // 取得目前選中的分類
+        // 取得目前選中的分類 (UI選單)
         const getSelectedCategory = () => {
             const selected = document.querySelector('input[name="newCategory"]:checked');
             return selected ? selected.value : "";
         };
+
+        // --- 核心功能：智慧分類處理 ---
+        function processNoteContent(rawText) {
+            let content = rawText.trim();
+            if (!content) return null;
+
+            let category = getSelectedCategory(); // 預設使用UI選的
+            
+            // 檢查第一個字元
+            const firstChar = content.charAt(0);
+            const map = {
+                '1': '個人',
+                '2': '家庭',
+                '3': '班級',
+                '4': '大吉',
+                '5': '代辦'
+            };
+
+            if (map[firstChar]) {
+                category = map[firstChar];
+                // 移除第一個數字，並且移除後續可能的 分隔符 (冒號, 點, 頓號) 或 空白
+                // Regex 解釋: ^ (開頭), . (任意單一字元，這裡指那數字), [:.、\s]* (接著任意數量的分隔符號)
+                content = content.substring(1).replace(/^[:.、\s]+/, '');
+            }
+
+            return { content, category };
+        }
 
         // --- 1. 極速一鍵貼上並儲存 ---
         pasteBtn.onclick = async () => {
@@ -140,14 +171,16 @@
                 pasteBtnText.innerText = "讀取...";
                 const text = await navigator.clipboard.readText();
                 
-                if (text && text.trim().length > 0) {
+                const processed = processNoteContent(text);
+
+                if (processed && processed.content.length > 0) {
                     pasteBtnText.innerText = "儲存中...";
-                    // 新增時加入 category 和 order
+                    
                     await addDoc(notesCol, { 
-                        content: text, 
-                        category: getSelectedCategory(),
+                        content: processed.content, 
+                        category: processed.category,
                         createdAt: serverTimestamp(),
-                        order: Date.now() * -1 // 預設新項目在最上方
+                        order: Date.now() * -1
                     });
                     
                     pasteBtn.classList.replace('bg-green-500', 'bg-blue-600');
@@ -157,7 +190,7 @@
                         pasteBtn.innerHTML = originalIcon;
                     }, 1500);
                 } else {
-                    alert("剪貼簿是空的");
+                    alert("內容為空或無法讀取");
                     pasteBtnText.innerText = "一鍵貼上並儲存";
                 }
             } catch (err) {
@@ -167,13 +200,16 @@
             }
         };
 
-        // --- 2. 手動儲存 (新增) ---
+        // --- 2. 手動儲存 ---
         document.getElementById('saveBtn').onclick = async () => {
-            const text = noteInput.value.trim();
-            if (!text) return;
+            const text = noteInput.value;
+            const processed = processNoteContent(text);
+
+            if (!processed || !processed.content) return;
+            
             await addDoc(notesCol, { 
-                content: text, 
-                category: getSelectedCategory(),
+                content: processed.content, 
+                category: processed.category,
                 createdAt: serverTimestamp(),
                 order: Date.now() * -1
             });
@@ -184,7 +220,6 @@
         // --- 3. 篩選功能 ---
         window.setFilter = (filter) => {
             currentFilter = filter;
-            // 更新按鈕樣式
             document.querySelectorAll('.filter-btn').forEach(btn => {
                 if (btn.dataset.filter === filter) {
                     btn.className = "filter-btn bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition";
@@ -214,7 +249,6 @@
         function renderAllNotes() {
             notesList.innerHTML = '';
             
-            // 根據篩選器過濾
             const filtered = loadedNotes.filter(note => {
                 if (currentFilter === 'all') return true;
                 if (currentFilter === 'uncategorized') return !note.category;
@@ -229,10 +263,10 @@
             filtered.forEach(note => {
                 const div = document.createElement('div');
                 div.className = "note-card bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-3 relative group";
-                div.dataset.id = note.id; // 用於拖曳識別
+                div.dataset.id = note.id; 
 
-                // 分類選擇 HTML
-                const categories = ["", "個人", "家庭", "班級", "大吉"];
+                // 分類選擇 HTML (新增代辦)
+                const categories = ["", "個人", "家庭", "班級", "大吉", "代辦"];
                 let categoryOptions = categories.map(cat => 
                     `<option value="${cat}" ${note.category === cat ? 'selected' : ''}>${cat || '無分類'}</option>`
                 ).join('');
@@ -277,7 +311,6 @@
             setTimeout(() => document.querySelectorAll('.auto-height').forEach(el => autoHeight(el)), 50);
         }
 
-        // --- 5. 拖曳排序初始化 ---
         function initSortable() {
             new Sortable(notesList, {
                 handle: '.drag-handle',
@@ -300,26 +333,17 @@
             });
         }
 
-        // --- 6. 手動儲存邏輯 ---
-        window.showSaveHint = (id) => {
-            // 可選：當打字時讓儲存按鈕變色提醒，這裡暫時不做複雜變更，讓使用者直接按
-        };
+        window.showSaveHint = (id) => { };
 
         window.updateNoteContent = async (id, btn) => {
             const newContent = document.getElementById(`text-${id}`).value;
             const originalText = btn.innerHTML;
-            
-            // 變更按鈕狀態為 loading
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 儲存中';
             btn.disabled = true;
-
             try {
                 await updateDoc(doc(db, "notes", id), { content: newContent });
-                
-                // 成功狀態
                 btn.innerHTML = '<i class="fas fa-check"></i> 已儲存';
                 btn.classList.replace('bg-green-100', 'bg-green-200');
-                
                 setTimeout(() => {
                     btn.innerHTML = originalText;
                     btn.classList.replace('bg-green-200', 'bg-green-100');
@@ -332,12 +356,10 @@
             }
         };
 
-        // --- 7. 更新分類 (這個還是自動存，因為是選單) ---
         window.updateCategory = async (id, newCategory) => {
             await updateDoc(doc(db, "notes", id), { category: newCategory });
         };
 
-        // --- 8. 個別複製 ---
         window.copySingle = (id) => {
             const text = document.getElementById(`text-${id}`).value;
             navigator.clipboard.writeText(text).then(() => {
@@ -345,7 +367,6 @@
             });
         };
 
-        // --- 9. 批量操作 ---
         window.toggleSelectAll = () => {
             const checkboxes = document.querySelectorAll('.note-checkbox');
             const allChecked = Array.from(checkboxes).every(cb => cb.checked);
@@ -356,15 +377,12 @@
         window.updateBatchUI = () => {
             const checkboxes = document.querySelectorAll('.note-checkbox');
             const selected = document.querySelectorAll('.note-checkbox:checked');
-            
             document.getElementById('selectedCount').innerText = `${selected.length} 項`;
-            
             if (selected.length > 0) {
                 batchBar.classList.remove('hidden');
             } else {
                 batchBar.classList.add('hidden');
             }
-
             if (checkboxes.length > 0 && selected.length === checkboxes.length) {
                 selectAllBtn.innerText = "取消";
             } else {
@@ -372,50 +390,39 @@
             }
         };
 
-        // --- 修改後的批量複製功能 ---
         window.batchCopy = () => {
             const selectedIds = Array.from(document.querySelectorAll('.note-checkbox:checked')).map(cb => cb.value);
             if (selectedIds.length === 0) return;
 
-            // 定義類別順序
-            const targetCategories = ["個人", "家庭", "班級", "大吉", ""]; 
+            // 新增代辦到複製排序
+            const targetCategories = ["個人", "家庭", "班級", "大吉", "代辦", ""]; 
             const groups = {};
-            
-            // 初始化容器
             targetCategories.forEach(c => groups[c] = []);
 
-            // 依照畫面上的順序讀取 (確保拖曳排序後的順序正確)
             document.querySelectorAll('.note-card').forEach(card => {
                 const id = card.dataset.id;
                 if (selectedIds.includes(id)) {
-                    // 取得最新的文字框內容
                     const content = card.querySelector('textarea').value;
-                    // 從 loadedNotes 找回分類資訊
                     const note = loadedNotes.find(n => n.id === id);
                     const cat = note ? (note.category || "") : "";
-                    
                     if (groups[cat]) {
                         groups[cat].push(content);
                     } else {
-                        // 若有預期外的分類，歸類到無分類
                         groups[""].push(content);
                     }
                 }
             });
 
-            // 組合最終文字
             let finalParts = [];
             targetCategories.forEach(cat => {
                 if (groups[cat] && groups[cat].length > 0) {
                     const header = cat === "" ? "無分類" : cat;
-                    // 格式：【分類名稱】\n內容\n內容...
                     const groupText = `【${header}】\n` + groups[cat].join('\n\n');
                     finalParts.push(groupText);
                 }
             });
 
             const textToCopy = finalParts.join('\n\n====================\n\n');
-            
             navigator.clipboard.writeText(textToCopy).then(() => {
                 alert("已依分類複製選取項目！");
             });
