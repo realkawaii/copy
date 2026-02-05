@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>極速雲端剪貼簿 (多重分類版)</title>
+    <title>極速雲端剪貼簿 (置頂+時間版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         body { touch-action: manipulation; }
-        .note-card { transition: transform 0.2s, box-shadow 0.2s; }
+        .note-card { transition: transform 0.2s, box-shadow 0.2s, background-color 0.3s; }
         .note-card.sortable-ghost { opacity: 0.4; background: #e0f2fe; }
         .note-card.sortable-drag { background: #fff; transform: scale(1.02); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
         .checkbox-custom { width: 24px; height: 24px; cursor: pointer; flex-shrink: 0; }
@@ -19,10 +19,13 @@
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* 複選框樣式優化 */
         .cat-checkbox:checked + label {
             background-color: #3b82f6; color: white; border-color: #3b82f6;
         }
+
+        /* 置頂樣式 */
+        .pinned-card { background-color: #fffbeb !important; border-color: #fcd34d !important; }
+        .pinned-icon-active { color: #d97706; transform: rotate(45deg); }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen pb-32">
@@ -30,7 +33,7 @@
     <div class="max-w-3xl mx-auto p-3 md:p-4">
         <header class="py-4 text-center">
             <h1 class="text-2xl md:text-3xl font-extrabold text-blue-700">雲端剪貼簿</h1>
-            <p class="text-xs text-gray-500 mt-1">手動儲存．數字自動分類．多重標籤</p>
+            <p class="text-xs text-gray-500 mt-1">時間紀錄．置頂功能．當天篩選</p>
         </header>
 
         <div class="bg-white rounded-2xl shadow-md p-4 mb-4 border border-blue-100">
@@ -68,6 +71,9 @@
         <div class="sticky top-0 z-30 bg-gray-100 pt-2 pb-3">
             <div class="flex gap-2 overflow-x-auto hide-scrollbar" id="filterContainer">
                 <button onclick="setFilter('all')" class="filter-btn bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="all">全部</button>
+                <button onclick="setFilter('today')" class="filter-btn bg-white text-blue-600 border border-blue-200 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="today">
+                    <i class="far fa-calendar-alt"></i> 當天
+                </button>
                 <button onclick="setFilter('個人')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="個人">個人</button>
                 <button onclick="setFilter('家庭')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="家庭">家庭</button>
                 <button onclick="setFilter('班級')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="班級">班級</button>
@@ -129,37 +135,48 @@
             el.style.height = el.scrollHeight + 'px';
         };
 
-        // 取得目前選中的分類 (複選)
+        // 時間格式化工具
+        const formatDate = (timestamp) => {
+            if (!timestamp) return '剛剛';
+            const date = timestamp.toDate();
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const day = date.getDate().toString().padStart(2, '0');
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            return `${month}/${day} ${hours}:${minutes}`;
+        };
+
+        // 檢查是否為今天
+        const isToday = (timestamp) => {
+            if (!timestamp) return true; // 剛建立的預設為今天
+            const date = timestamp.toDate();
+            const today = new Date();
+            return date.getDate() === today.getDate() &&
+                   date.getMonth() === today.getMonth() &&
+                   date.getFullYear() === today.getFullYear();
+        };
+
         const getSelectedCategories = () => {
             const checkedBoxes = document.querySelectorAll('.cat-checkbox:checked');
             return Array.from(checkedBoxes).map(cb => cb.value);
         };
 
-        // --- 核心功能：智慧分類處理 (支援多重) ---
         function processNoteContent(rawText) {
             let content = rawText.trim();
             if (!content) return null;
 
-            // 取得 UI 上勾選的分類
             let categories = getSelectedCategories(); 
             
-            // 檢查第一個字元 (數字自動分類)
             const firstChar = content.charAt(0);
             const map = {
-                '1': '個人',
-                '2': '家庭',
-                '3': '班級',
-                '4': '大吉',
-                '5': '代辦'
+                '1': '個人', '2': '家庭', '3': '班級', '4': '大吉', '5': '代辦'
             };
 
             if (map[firstChar]) {
                 const autoCat = map[firstChar];
-                // 如果陣列裡沒有這個分類，就加入 (避免重複)
                 if (!categories.includes(autoCat)) {
                     categories.push(autoCat);
                 }
-                // 清除數字前綴
                 content = content.substring(1).replace(/^[:.、\s]+/, '');
             }
 
@@ -180,9 +197,10 @@
                     
                     await addDoc(notesCol, { 
                         content: processed.content, 
-                        category: processed.categories, // 存成陣列
+                        category: processed.categories,
                         createdAt: serverTimestamp(),
-                        order: Date.now() * -1
+                        order: Date.now() * -1,
+                        isPinned: false // 預設不置頂
                     });
                     
                     pasteBtn.classList.replace('bg-green-500', 'bg-blue-600');
@@ -213,15 +231,15 @@
                 content: processed.content, 
                 category: processed.categories,
                 createdAt: serverTimestamp(),
-                order: Date.now() * -1
+                order: Date.now() * -1,
+                isPinned: false
             });
             noteInput.value = '';
             noteInput.style.height = 'auto';
-            // 清除勾選
             document.querySelectorAll('.cat-checkbox').forEach(cb => cb.checked = false);
         };
 
-        // --- 3. 篩選功能 (多重分類適配) ---
+        // --- 3. 篩選功能 ---
         window.setFilter = (filter) => {
             currentFilter = filter;
             document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -239,7 +257,6 @@
             loadedNotes = [];
             snapshot.forEach((docSnap) => {
                 const data = docSnap.data();
-                // 資料正規化：舊資料是字串，轉為陣列；新資料是陣列，保持原樣
                 let catArray = [];
                 if (Array.isArray(data.category)) {
                     catArray = data.category;
@@ -251,9 +268,18 @@
                     id: docSnap.id, 
                     content: data.content, 
                     category: catArray, 
-                    order: data.order || 0
+                    order: data.order || 0,
+                    createdAt: data.createdAt,
+                    isPinned: data.isPinned || false // 讀取置頂狀態
                 });
             });
+
+            // 排序：先看是否置頂 (True排前)，再看Order
+            loadedNotes.sort((a, b) => {
+                if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+                return a.order - b.order;
+            });
+
             renderAllNotes();
             updateBatchUI();
         });
@@ -263,8 +289,8 @@
             
             const filtered = loadedNotes.filter(note => {
                 if (currentFilter === 'all') return true;
+                if (currentFilter === 'today') return isToday(note.createdAt); // 篩選當天
                 if (currentFilter === 'uncategorized') return note.category.length === 0;
-                // 只要陣列中包含該分類就顯示
                 return note.category.includes(currentFilter);
             });
 
@@ -275,12 +301,13 @@
 
             filtered.forEach(note => {
                 const div = document.createElement('div');
-                div.className = "note-card bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-3 relative group";
+                // 如果是置頂，加上特殊樣式
+                const pinnedClass = note.isPinned ? 'pinned-card' : 'bg-white';
+                div.className = `note-card ${pinnedClass} p-3 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-3 relative group`;
                 div.dataset.id = note.id; 
 
                 const labels = ["個人", "家庭", "班級", "大吉", "代辦"];
 
-                // 產生按鈕 HTML (多重選擇)
                 let categoryButtonsHtml = labels.map(cat => {
                     const isSelected = note.category.includes(cat);
                     const style = isSelected 
@@ -293,6 +320,9 @@
                     </button>`;
                 }).join('');
 
+                // 置頂按鈕樣式
+                const pinIconClass = note.isPinned ? 'pinned-icon-active' : 'text-gray-300 hover:text-gray-500';
+
                 div.innerHTML = `
                     <div class="flex flex-col items-center gap-2 mt-2">
                         <div class="drag-handle cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 px-1">
@@ -301,8 +331,12 @@
                         <input type="checkbox" class="note-checkbox checkbox-custom" value="${note.id}" onchange="updateBatchUI()">
                     </div>
 
-                    <div class="flex-1 min-w-0">
-                        <div class="flex flex-wrap gap-1 mb-2">
+                    <div class="flex-1 min-w-0 relative">
+                        <button onclick="togglePin('${note.id}', ${note.isPinned})" class="absolute top-0 right-0 p-2 transition ${pinIconClass}" title="置頂">
+                            <i class="fas fa-thumbtack"></i>
+                        </button>
+
+                        <div class="flex flex-wrap gap-1 mb-2 pr-8">
                             ${categoryButtonsHtml}
                         </div>
 
@@ -310,17 +344,22 @@
                             class="auto-height w-full p-2 text-lg text-gray-800 bg-transparent border-b border-transparent focus:border-blue-200 focus:bg-gray-50 rounded transition-colors resize-none font-medium outline-none" 
                             rows="1">${note.content}</textarea>
                         
-                        <div class="flex justify-end gap-2 mt-3 items-center">
-                            <button onclick="updateNoteContent('${note.id}', this)" class="bg-green-100 text-green-700 hover:bg-green-200 px-3 py-1.5 rounded-lg text-sm font-bold transition flex items-center gap-1">
-                                <i class="fas fa-save"></i> 儲存
-                            </button>
+                        <div class="flex justify-between items-end mt-2">
+                            <span class="text-xs text-gray-400 font-mono ml-2 mb-1">
+                                ${formatDate(note.createdAt)}
+                            </span>
 
-                            <button onclick="copySingle('${note.id}')" class="text-gray-400 hover:text-blue-500 p-2 transition" title="複製">
-                                <i class="far fa-copy fa-lg"></i>
-                            </button>
-                            <button onclick="deleteNote('${note.id}')" class="text-gray-400 hover:text-red-500 p-2 transition" title="刪除">
-                                <i class="far fa-trash-alt fa-lg"></i>
-                            </button>
+                            <div class="flex gap-2 items-center">
+                                <button onclick="updateNoteContent('${note.id}', this)" class="bg-green-100 text-green-700 hover:bg-green-200 px-3 py-1.5 rounded-lg text-sm font-bold transition flex items-center gap-1">
+                                    <i class="fas fa-save"></i> 儲存
+                                </button>
+                                <button onclick="copySingle('${note.id}')" class="text-gray-400 hover:text-blue-500 p-2 transition" title="複製">
+                                    <i class="far fa-copy fa-lg"></i>
+                                </button>
+                                <button onclick="deleteNote('${note.id}')" class="text-gray-400 hover:text-red-500 p-2 transition" title="刪除">
+                                    <i class="far fa-trash-alt fa-lg"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -355,6 +394,15 @@
 
         window.showSaveHint = (id) => { };
 
+        // --- 功能：切換置頂 ---
+        window.togglePin = async (id, currentStatus) => {
+            try {
+                await updateDoc(doc(db, "notes", id), { isPinned: !currentStatus });
+            } catch (e) {
+                console.error("置頂失敗", e);
+            }
+        };
+
         window.updateNoteContent = async (id, btn) => {
             const newContent = document.getElementById(`text-${id}`).value;
             const originalText = btn.innerHTML;
@@ -376,16 +424,13 @@
             }
         };
 
-        // --- 切換分類 (Toggle) ---
         window.toggleNoteCategory = async (id, targetCat) => {
             const note = loadedNotes.find(n => n.id === id);
-            let currentCats = [...note.category]; // 複製一份
+            let currentCats = [...note.category]; 
             
             if (currentCats.includes(targetCat)) {
-                // 如果已有，則移除
                 currentCats = currentCats.filter(c => c !== targetCat);
             } else {
-                // 如果沒有，則加入
                 currentCats.push(targetCat);
             }
             
@@ -437,12 +482,10 @@
                     const note = loadedNotes.find(n => n.id === id);
                     const cats = (note && note.category.length > 0) ? note.category : [""];
                     
-                    // 將筆記內容放入它所屬的每一個分類群組中
                     cats.forEach(cat => {
                          if (groups[cat]) {
                             groups[cat].push(content);
                         } else {
-                            // 防呆：如果是未定義的分類
                             groups[""].push(content);
                         }
                     });
