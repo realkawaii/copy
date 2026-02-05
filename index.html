@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>極速雲端剪貼簿 (置頂+時間版)</title>
+    <title>極速雲端剪貼簿 (日期篩選版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -26,6 +26,12 @@
         /* 置頂樣式 */
         .pinned-card { background-color: #fffbeb !important; border-color: #fcd34d !important; }
         .pinned-icon-active { color: #d97706; transform: rotate(45deg); }
+        
+        /* 日期輸入框樣式優化 */
+        input[type="date"] {
+            -webkit-appearance: none;
+            min-height: 38px;
+        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen pb-32">
@@ -33,7 +39,7 @@
     <div class="max-w-3xl mx-auto p-3 md:p-4">
         <header class="py-4 text-center">
             <h1 class="text-2xl md:text-3xl font-extrabold text-blue-700">雲端剪貼簿</h1>
-            <p class="text-xs text-gray-500 mt-1">時間紀錄．置頂功能．當天篩選</p>
+            <p class="text-xs text-gray-500 mt-1">時間紀錄．置頂功能．指定日期篩選</p>
         </header>
 
         <div class="bg-white rounded-2xl shadow-md p-4 mb-4 border border-blue-100">
@@ -69,17 +75,23 @@
         </div>
 
         <div class="sticky top-0 z-30 bg-gray-100 pt-2 pb-3">
-            <div class="flex gap-2 overflow-x-auto hide-scrollbar" id="filterContainer">
-                <button onclick="setFilter('all')" class="filter-btn bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="all">全部</button>
-                <button onclick="setFilter('today')" class="filter-btn bg-white text-blue-600 border border-blue-200 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="today">
+            <div class="flex gap-2 overflow-x-auto hide-scrollbar items-center" id="filterContainer">
+                <button onclick="setFilter('all')" class="filter-btn bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition" data-filter="all">全部</button>
+                
+                <button onclick="setFilter('today')" class="filter-btn bg-white text-blue-600 border border-blue-200 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition" data-filter="today">
                     <i class="far fa-calendar-alt"></i> 當天
                 </button>
-                <button onclick="setFilter('個人')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="個人">個人</button>
-                <button onclick="setFilter('家庭')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="家庭">家庭</button>
-                <button onclick="setFilter('班級')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="班級">班級</button>
-                <button onclick="setFilter('大吉')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="大吉">大吉</button>
-                <button onclick="setFilter('代辦')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="代辦">代辦</button>
-                <button onclick="setFilter('uncategorized')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap" data-filter="uncategorized">無分類</button>
+
+                <input type="date" id="dateInputFilter" onchange="setFilter('date')" class="bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-blue-500" style="min-width: 140px;">
+
+                <div class="w-[1px] h-6 bg-gray-300 mx-1 flex-shrink-0"></div>
+
+                <button onclick="setFilter('個人')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition" data-filter="個人">個人</button>
+                <button onclick="setFilter('家庭')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition" data-filter="家庭">家庭</button>
+                <button onclick="setFilter('班級')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition" data-filter="班級">班級</button>
+                <button onclick="setFilter('大吉')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition" data-filter="大吉">大吉</button>
+                <button onclick="setFilter('代辦')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition" data-filter="代辦">代辦</button>
+                <button onclick="setFilter('uncategorized')" class="filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition" data-filter="uncategorized">無分類</button>
             </div>
         </div>
 
@@ -126,6 +138,7 @@
         const batchBar = document.getElementById('batchBar');
         const pasteBtn = document.getElementById('pasteSaveBtn');
         const pasteBtnText = document.getElementById('pasteBtnText');
+        const dateInputFilter = document.getElementById('dateInputFilter');
         
         let loadedNotes = [];
         let currentFilter = 'all';
@@ -148,12 +161,21 @@
 
         // 檢查是否為今天
         const isToday = (timestamp) => {
-            if (!timestamp) return true; // 剛建立的預設為今天
+            if (!timestamp) return true;
             const date = timestamp.toDate();
             const today = new Date();
             return date.getDate() === today.getDate() &&
                    date.getMonth() === today.getMonth() &&
                    date.getFullYear() === today.getFullYear();
+        };
+
+        // 檢查是否為指定日期
+        const isSameDate = (timestamp, dateStr) => {
+            if (!timestamp || !dateStr) return false;
+            const date = timestamp.toDate();
+            // 轉成 YYYY-MM-DD 格式
+            const dStr = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+            return dStr === dateStr;
         };
 
         const getSelectedCategories = () => {
@@ -200,7 +222,7 @@
                         category: processed.categories,
                         createdAt: serverTimestamp(),
                         order: Date.now() * -1,
-                        isPinned: false // 預設不置頂
+                        isPinned: false
                     });
                     
                     pasteBtn.classList.replace('bg-green-500', 'bg-blue-600');
@@ -242,11 +264,28 @@
         // --- 3. 篩選功能 ---
         window.setFilter = (filter) => {
             currentFilter = filter;
+            
+            // 處理日期選擇器的外觀
+            if (filter === 'date') {
+                dateInputFilter.classList.add('border-blue-500', 'ring-2', 'ring-blue-100');
+            } else {
+                dateInputFilter.classList.remove('border-blue-500', 'ring-2', 'ring-blue-100');
+                if (filter !== 'date') dateInputFilter.value = ''; // 如果切換到其他過濾器，清空日期
+            }
+
             document.querySelectorAll('.filter-btn').forEach(btn => {
-                if (btn.dataset.filter === filter) {
+                const btnFilter = btn.dataset.filter;
+                // 一般按鈕樣式切換
+                if (btnFilter === filter) {
                     btn.className = "filter-btn bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition";
                 } else {
-                    btn.className = "filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition hover:bg-gray-50";
+                    // 預設樣式
+                    let baseClass = "filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition hover:bg-gray-50";
+                    // 為「當天」按鈕保留藍色文字
+                    if (btnFilter === 'today') {
+                        baseClass = "filter-btn bg-white text-blue-600 border border-blue-200 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition hover:bg-blue-50";
+                    }
+                    btn.className = baseClass;
                 }
             });
             renderAllNotes();
@@ -270,11 +309,10 @@
                     category: catArray, 
                     order: data.order || 0,
                     createdAt: data.createdAt,
-                    isPinned: data.isPinned || false // 讀取置頂狀態
+                    isPinned: data.isPinned || false
                 });
             });
 
-            // 排序：先看是否置頂 (True排前)，再看Order
             loadedNotes.sort((a, b) => {
                 if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
                 return a.order - b.order;
@@ -289,7 +327,8 @@
             
             const filtered = loadedNotes.filter(note => {
                 if (currentFilter === 'all') return true;
-                if (currentFilter === 'today') return isToday(note.createdAt); // 篩選當天
+                if (currentFilter === 'today') return isToday(note.createdAt);
+                if (currentFilter === 'date') return isSameDate(note.createdAt, dateInputFilter.value); // 指定日期篩選
                 if (currentFilter === 'uncategorized') return note.category.length === 0;
                 return note.category.includes(currentFilter);
             });
@@ -301,7 +340,6 @@
 
             filtered.forEach(note => {
                 const div = document.createElement('div');
-                // 如果是置頂，加上特殊樣式
                 const pinnedClass = note.isPinned ? 'pinned-card' : 'bg-white';
                 div.className = `note-card ${pinnedClass} p-3 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-3 relative group`;
                 div.dataset.id = note.id; 
@@ -320,7 +358,6 @@
                     </button>`;
                 }).join('');
 
-                // 置頂按鈕樣式
                 const pinIconClass = note.isPinned ? 'pinned-icon-active' : 'text-gray-300 hover:text-gray-500';
 
                 div.innerHTML = `
@@ -394,7 +431,6 @@
 
         window.showSaveHint = (id) => { };
 
-        // --- 功能：切換置頂 ---
         window.togglePin = async (id, currentStatus) => {
             try {
                 await updateDoc(doc(db, "notes", id), { isPinned: !currentStatus });
