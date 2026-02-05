@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>極速雲端剪貼簿 (日期篩選版)</title>
+    <title>極速雲端剪貼簿 (日期快選版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -27,10 +27,25 @@
         .pinned-card { background-color: #fffbeb !important; border-color: #fcd34d !important; }
         .pinned-icon-active { color: #d97706; transform: rotate(45deg); }
         
-        /* 日期輸入框樣式優化 */
+        /* 日期輸入框優化：讓它看起來像按鈕，且游標是手指 */
         input[type="date"] {
             -webkit-appearance: none;
             min-height: 38px;
+            cursor: pointer;
+            position: relative;
+        }
+        /* 隱藏預設的日曆圖示，改用我們自定義的樣式或讓整個框可點 */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            background: transparent;
+            bottom: 0;
+            color: transparent;
+            cursor: pointer;
+            height: auto;
+            left: 0;
+            position: absolute;
+            right: 0;
+            top: 0;
+            width: auto;
         }
     </style>
 </head>
@@ -39,7 +54,7 @@
     <div class="max-w-3xl mx-auto p-3 md:p-4">
         <header class="py-4 text-center">
             <h1 class="text-2xl md:text-3xl font-extrabold text-blue-700">雲端剪貼簿</h1>
-            <p class="text-xs text-gray-500 mt-1">時間紀錄．置頂功能．指定日期篩選</p>
+            <p class="text-xs text-gray-500 mt-1">時間紀錄．置頂功能．日期快選</p>
         </header>
 
         <div class="bg-white rounded-2xl shadow-md p-4 mb-4 border border-blue-100">
@@ -82,7 +97,17 @@
                     <i class="far fa-calendar-alt"></i> 當天
                 </button>
 
-                <input type="date" id="dateInputFilter" onchange="setFilter('date')" class="bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-blue-500" style="min-width: 140px;">
+                <div class="relative group">
+                    <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none z-10">
+                        <i class="fas fa-calendar-day text-gray-500"></i>
+                    </div>
+                    <input type="date" id="dateInputFilter" 
+                        onchange="setFilter('date')" 
+                        onclick="try{this.showPicker()}catch(e){}"
+                        onkeydown="return false"
+                        class="pl-9 pr-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer w-full"
+                        style="min-width: 140px;">
+                </div>
 
                 <div class="w-[1px] h-6 bg-gray-300 mx-1 flex-shrink-0"></div>
 
@@ -267,21 +292,18 @@
             
             // 處理日期選擇器的外觀
             if (filter === 'date') {
-                dateInputFilter.classList.add('border-blue-500', 'ring-2', 'ring-blue-100');
+                dateInputFilter.parentElement.classList.add('ring-2', 'ring-blue-500', 'rounded-lg');
             } else {
-                dateInputFilter.classList.remove('border-blue-500', 'ring-2', 'ring-blue-100');
-                if (filter !== 'date') dateInputFilter.value = ''; // 如果切換到其他過濾器，清空日期
+                dateInputFilter.parentElement.classList.remove('ring-2', 'ring-blue-500', 'rounded-lg');
+                if (filter !== 'date') dateInputFilter.value = ''; 
             }
 
             document.querySelectorAll('.filter-btn').forEach(btn => {
                 const btnFilter = btn.dataset.filter;
-                // 一般按鈕樣式切換
                 if (btnFilter === filter) {
                     btn.className = "filter-btn bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition";
                 } else {
-                    // 預設樣式
                     let baseClass = "filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition hover:bg-gray-50";
-                    // 為「當天」按鈕保留藍色文字
                     if (btnFilter === 'today') {
                         baseClass = "filter-btn bg-white text-blue-600 border border-blue-200 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition hover:bg-blue-50";
                     }
@@ -328,7 +350,7 @@
             const filtered = loadedNotes.filter(note => {
                 if (currentFilter === 'all') return true;
                 if (currentFilter === 'today') return isToday(note.createdAt);
-                if (currentFilter === 'date') return isSameDate(note.createdAt, dateInputFilter.value); // 指定日期篩選
+                if (currentFilter === 'date') return isSameDate(note.createdAt, dateInputFilter.value); 
                 if (currentFilter === 'uncategorized') return note.category.length === 0;
                 return note.category.includes(currentFilter);
             });
