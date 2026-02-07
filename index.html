@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>雲端剪貼簿 (進階篩選版)</title>
+    <title>雲端剪貼簿 (可編輯修正版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -143,7 +143,11 @@
         const formatDate = (timestamp) => {
             if (!timestamp) return '剛剛';
             const date = timestamp.toDate();
-            return `${(date.getMonth()+1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const day = date.getDate().toString().padStart(2, '0');
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            return `${month}/${day} ${hours}:${minutes}`;
         };
 
         const isToday = (timestamp) => {
@@ -160,25 +164,191 @@
             return dStr === dateStr;
         };
 
+        const getSelectedCategories = () => {
+            const checkedBoxes = document.querySelectorAll('.cat-checkbox:checked');
+            return Array.from(checkedBoxes).map(cb => cb.value);
+        };
+
+        function processNoteContent(rawText) {
+            let content = rawText.trim();
+            if (!content) return null;
+            let categories = getSelectedCategories(); 
+            const firstChar = content.charAt(0);
+            const map = { '1': '個人', '2': '家庭', '3': '班級', '4': '大吉', '5': '代辦' };
+            if (map[firstChar]) {
+                const autoCat = map[firstChar];
+                if (!categories.includes(autoCat)) categories.push(autoCat);
+                content = content.substring(1).replace(/^[:.、\s]+/, '');
+            }
+            return { content, categories };
+        }
+
         const q = query(notesCol); 
+        
         onSnapshot(q, (snapshot) => {
             loadedNotes = [];
             snapshot.forEach((docSnap) => {
                 const data = docSnap.data();
                 let catArray = (Array.isArray(data.category)) ? data.category : (data.category ? [data.category] : []);
-                loadedNotes.push({ id: docSnap.id, content: data.content, category: catArray, order: data.order || 0, createdAt: data.createdAt, isPinned: data.isPinned || false });
+                loadedNotes.push({ 
+                    id: docSnap.id, 
+                    content: data.content, 
+                    category: catArray, 
+                    order: data.order || 0,
+                    createdAt: data.createdAt, 
+                    isPinned: data.isPinned || false
+                });
             });
+
             loadedNotes.sort((a, b) => {
                 if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
                 const timeA = a.createdAt ? a.createdAt.seconds : 0;
                 const timeB = b.createdAt ? b.createdAt.seconds : 0;
                 return timeB - timeA; 
             });
+
             renderAllNotes();
             updateBatchUI();
         });
 
-        // --- 核心邏輯：排除分類 ---
+        pasteBtn.onclick = async () => {
+            try {
+                const text = await navigator.clipboard.readText();
+                const processed = processNoteContent(text);
+                if (processed && processed.content.length > 0) {
+                    await addDoc(notesCol, { 
+                        content: processed.content, 
+                        category: processed.categories,
+                        createdAt: serverTimestamp(),
+                        order: Date.now() * -1,
+                        isPinned: false
+                    });
+                    pasteBtnText.innerText = "已貼上！"; setTimeout(() => pasteBtnText.innerText = "一鍵貼上並儲存", 1500);
+                }
+            } catch (err) { alert("無法存取剪貼簿"); }
+        };
+
+        document.getElementById('saveBtn').onclick = async () => {
+            const processed = processNoteContent(noteInput.value);
+            if (!processed) return;
+            await addDoc(notesCol, { 
+                content: processed.content, 
+                category: processed.categories,
+                createdAt: serverTimestamp(),
+                order: Date.now() * -1,
+                isPinned: false
+            });
+            noteInput.value = ''; noteInput.style.height = 'auto';
+            document.querySelectorAll('.cat-checkbox').forEach(cb => cb.checked = false);
+        };
+
+        window.setFilter = (filter) => {
+            currentFilter = filter;
+            if (filter === 'date') {
+                dateInputFilter.parentElement.classList.add('ring-2', 'ring-blue-500', 'rounded-lg');
+            } else {
+                dateInputFilter.parentElement.classList.remove('ring-2', 'ring-blue-500', 'rounded-lg');
+                if (filter !== 'date') dateInputFilter.value = ''; 
+            }
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.className = btn.dataset.filter === filter ? "filter-btn bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition" : "filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition hover:bg-gray-50";
+            });
+            renderAllNotes();
+        };
+
+        function renderAllNotes() {
+            notesList.innerHTML = '';
+            const filtered = loadedNotes.filter(note => {
+                if (currentFilter === 'all') return true;
+                if (currentFilter === 'today') return isToday(note.createdAt);
+                if (currentFilter === 'date') return isSameDate(note.createdAt, dateInputFilter.value); 
+                if (currentFilter === 'uncategorized') return note.category.length === 0;
+                return note.category.includes(currentFilter);
+            });
+            
+            filtered.forEach(note => {
+                const div = document.createElement('div');
+                const pinnedClass = note.isPinned ? 'pinned-card' : 'bg-white';
+                div.className = `note-card ${pinnedClass} p-3 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-3 relative group`;
+                div.dataset.id = note.id; 
+
+                const labels = ["個人", "家庭", "班級", "大吉", "代辦"];
+                let categoryButtonsHtml = labels.map(cat => {
+                    const isSelected = note.category.includes(cat);
+                    const style = isSelected ? "bg-blue-500 text-white border-blue-600 shadow-sm" : "bg-white text-gray-400 border-gray-200 hover:bg-gray-50";
+                    return `<button onclick="toggleNoteCategory('${note.id}', '${cat}')" class="px-2 py-1 rounded text-[11px] font-bold border transition ${style}">${cat}</button>`;
+                }).join('');
+                
+                const pinIconClass = note.isPinned ? 'pinned-icon-active' : 'text-gray-300 hover:text-gray-500';
+
+                div.innerHTML = `
+                    <div class="flex flex-col items-center gap-2 mt-2">
+                        <div class="drag-handle cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 px-1"><i class="fas fa-bars"></i></div>
+                        <input type="checkbox" class="note-checkbox checkbox-custom" value="${note.id}" onchange="updateBatchUI()">
+                    </div>
+                    <div class="flex-1 min-w-0 relative">
+                        <button onclick="togglePin('${note.id}', ${note.isPinned})" class="absolute top-0 right-0 p-2 transition ${pinIconClass}" title="置頂"><i class="fas fa-thumbtack"></i></button>
+                        <div class="flex flex-wrap gap-1 mb-2 pr-8">${categoryButtonsHtml}</div>
+                        <textarea id="text-${note.id}" oninput="autoHeight(this); showSaveHint('${note.id}')" class="auto-height w-full p-2 text-lg text-gray-800 bg-transparent border-b border-transparent focus:border-blue-200 focus:bg-gray-50 rounded transition-colors resize-none font-medium outline-none" rows="1">${note.content}</textarea>
+                        <div class="flex justify-between items-end mt-2">
+                            <span class="text-xs text-gray-400 font-mono ml-2 mb-1">${formatDate(note.createdAt)}</span>
+                            <div class="flex gap-2 items-center">
+                                <button onclick="updateNoteContent('${note.id}', this)" class="bg-green-100 text-green-700 hover:bg-green-200 px-3 py-1.5 rounded-lg text-sm font-bold transition flex items-center gap-1"><i class="fas fa-save"></i> 儲存</button>
+                                <button onclick="copySingle('${note.id}')" class="text-gray-400 hover:text-blue-500 p-2 transition" title="複製"><i class="far fa-copy fa-lg"></i></button>
+                                <button onclick="deleteNote('${note.id}')" class="text-gray-400 hover:text-red-500 p-2 transition" title="刪除"><i class="far fa-trash-alt fa-lg"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                notesList.appendChild(div);
+            });
+            initSortable();
+            setTimeout(() => document.querySelectorAll('.auto-height').forEach(el => autoHeight(el)), 50);
+        }
+
+        function initSortable() {
+            new Sortable(notesList, {
+                handle: '.drag-handle',
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                dragClass: 'sortable-drag',
+                onEnd: async function (evt) {
+                    const items = Array.from(notesList.children);
+                    if (items.length < 2) return;
+                    const batch = writeBatch(db);
+                    items.forEach((item, index) => {
+                        const id = item.dataset.id;
+                        if (id) {
+                            const ref = doc(db, "notes", id);
+                            batch.update(ref, { order: index });
+                        }
+                    });
+                    await batch.commit();
+                }
+            });
+        }
+
+        window.showSaveHint = (id) => { };
+        window.togglePin = async (id, currentStatus) => { await updateDoc(doc(db, "notes", id), { isPinned: !currentStatus }); };
+        
+        window.updateNoteContent = async (id, btn) => {
+            const newContent = document.getElementById(`text-${id}`).value;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; btn.disabled = true;
+            try { await updateDoc(doc(db, "notes", id), { content: newContent }); btn.innerHTML = '<i class="fas fa-check"></i>'; btn.classList.replace('bg-green-100', 'bg-green-200'); setTimeout(() => { btn.innerHTML = originalText; btn.classList.replace('bg-green-200', 'bg-green-100'); btn.disabled = false; }, 1000); } catch (e) { alert("儲存失敗"); btn.disabled = false; btn.innerHTML = originalText; }
+        };
+
+        window.toggleNoteCategory = async (id, targetCat) => {
+            const note = loadedNotes.find(n => n.id === id);
+            let currentCats = [...note.category]; 
+            if (currentCats.includes(targetCat)) currentCats = currentCats.filter(c => c !== targetCat); else currentCats.push(targetCat);
+            await updateDoc(doc(db, "notes", id), { category: currentCats });
+        };
+        
+        window.copySingle = (id) => { const text = document.getElementById(`text-${id}`).value; navigator.clipboard.writeText(text).then(() => alert("已複製！")); };
+        window.deleteNote = async (id) => { if (confirm("確定刪除此筆記？")) await deleteDoc(doc(db, "notes", id)); };
+
+        // --- 批量操作區 ---
         window.excludeCategory = (catName) => {
             const checkboxes = document.querySelectorAll('.note-checkbox:checked');
             checkboxes.forEach(cb => {
@@ -208,7 +378,10 @@
         function getBatchContent() {
             const selectedIds = Array.from(document.querySelectorAll('.note-checkbox:checked')).map(cb => cb.value);
             if (selectedIds.length === 0) return null;
+
             let selectedNotes = loadedNotes.filter(n => selectedIds.includes(n.id));
+
+            // 日期分組
             const notesByDate = {};
             selectedNotes.forEach(note => {
                 let dateStr = "未知日期";
@@ -219,14 +392,17 @@
                 if (!notesByDate[dateStr]) notesByDate[dateStr] = [];
                 notesByDate[dateStr].push(note);
             });
+
             const sortedDates = Object.keys(notesByDate).sort((a, b) => b.localeCompare(a));
             const targetCategories = ["個人", "家庭", "班級", "大吉", "代辦", ""]; 
             let finalOutput = [];
+
             sortedDates.forEach(date => {
                 let dateSection = `📅 ${date}\n--------------------`;
                 const notesInDate = notesByDate[date];
                 const catGroups = {};
                 targetCategories.forEach(c => catGroups[c] = []);
+
                 notesInDate.forEach(note => {
                     const cats = (note.category && note.category.length > 0) ? note.category : [""];
                     cats.forEach(cat => {
@@ -234,6 +410,7 @@
                         if (catGroups[cat]) catGroups[cat].push(formattedNote); else catGroups[""].push(formattedNote);
                     });
                 });
+
                 let hasContent = false;
                 targetCategories.forEach(cat => {
                     if (catGroups[cat] && catGroups[cat].length > 0) {
@@ -247,79 +424,24 @@
             return finalOutput.join('\n\n====================\n\n');
         }
 
-        // --- 其餘 CRUD 與介面功能 (維持不變) ---
-        pasteBtn.onclick = async () => {
-            try {
-                const text = await navigator.clipboard.readText();
-                const processed = processNoteContent(text);
-                if (processed && processed.content.length > 0) {
-                    await addDoc(notesCol, { content: processed.content, category: processed.categories, createdAt: serverTimestamp(), order: Date.now() * -1, isPinned: false });
-                    pasteBtnText.innerText = "已貼上！"; setTimeout(() => pasteBtnText.innerText = "一鍵貼上並儲存", 1500);
-                }
-            } catch (err) { alert("無法存取剪貼簿"); }
+        window.batchCopy = () => {
+            const textToCopy = getBatchContent();
+            if (!textToCopy) return;
+            navigator.clipboard.writeText(textToCopy).then(() => alert("已依清單格式複製！"));
         };
 
-        document.getElementById('saveBtn').onclick = async () => {
-            const processed = processNoteContent(noteInput.value);
-            if (!processed) return;
-            await addDoc(notesCol, { content: processed.content, category: processed.categories, createdAt: serverTimestamp(), order: Date.now() * -1, isPinned: false });
-            noteInput.value = ''; noteInput.style.height = 'auto';
-        };
-
-        window.setFilter = (filter) => {
-            currentFilter = filter;
-            document.querySelectorAll('.filter-btn').forEach(btn => {
-                btn.className = btn.dataset.filter === filter ? "filter-btn bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition" : "filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition hover:bg-gray-50";
-            });
-            renderAllNotes();
-        };
-
-        function renderAllNotes() {
-            notesList.innerHTML = '';
-            const filtered = loadedNotes.filter(note => {
-                if (currentFilter === 'all') return true;
-                if (currentFilter === 'today') return isToday(note.createdAt);
-                if (currentFilter === 'date') return isSameDate(note.createdAt, dateInputFilter.value); 
-                if (currentFilter === 'uncategorized') return note.category.length === 0;
-                return note.category.includes(currentFilter);
-            });
-            filtered.forEach(note => {
-                const div = document.createElement('div');
-                const pinnedClass = note.isPinned ? 'pinned-card' : 'bg-white';
-                div.className = `note-card ${pinnedClass} p-3 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-3 relative`;
-                div.dataset.id = note.id; 
-                div.innerHTML = `
-                    <div class="flex flex-col items-center gap-2 mt-2">
-                        <input type="checkbox" class="note-checkbox checkbox-custom" value="${note.id}" onchange="updateBatchUI()">
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="flex flex-wrap gap-1 mb-2">
-                            ${note.category.map(cat => `<span class="bg-blue-100 text-blue-600 px-2 py-0.5 rounded text-[10px] font-bold">${cat}</span>`).join('')}
-                        </div>
-                        <div class="text-lg text-gray-800 whitespace-pre-wrap">${note.content}</div>
-                        <div class="flex justify-between items-center mt-2">
-                            <span class="text-[10px] text-gray-400 font-mono">${formatDate(note.createdAt)}</span>
-                            <div class="flex gap-2">
-                                <button onclick="togglePin('${note.id}', ${note.isPinned})" class="${note.isPinned ? 'text-yellow-600' : 'text-gray-300'} p-1"><i class="fas fa-thumbtack"></i></button>
-                                <button onclick="deleteNote('${note.id}')" class="text-gray-300 hover:text-red-500 p-1"><i class="far fa-trash-alt"></i></button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                notesList.appendChild(div);
-            });
-        }
-
-        window.togglePin = async (id, status) => { await updateDoc(doc(db, "notes", id), { isPinned: !status }); };
-        window.deleteNote = async (id) => { if (confirm("確定刪除？")) await deleteDoc(doc(db, "notes", id)); };
-        window.batchCopy = () => { const text = getBatchContent(); if (text) { navigator.clipboard.writeText(text).then(() => alert("已依清單格式複製！")); } };
         window.batchUploadDoc = async () => {
-            const textContent = getBatchContent(); if (!textContent) return;
+            const textContent = getBatchContent();
+            if (!textContent) return alert("請先選取要上傳的筆記");
+            const btn = document.querySelector('button[onclick="batchUploadDoc()"]');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 上傳中...'; btn.disabled = true;
             try {
-                await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ text: textContent, date: new Date().toLocaleDateString() }) });
-                alert("已發送上傳請求！");
-            } catch (e) { alert("上傳失敗"); }
+                await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: textContent, date: new Date().toLocaleDateString() }) });
+                alert("已發送上傳請求！\n請至 Google Drive 檢查文件。");
+            } catch (e) { alert("上傳失敗"); } finally { btn.innerHTML = originalText; btn.disabled = false; }
         };
+
         window.batchDelete = async () => {
             const selected = document.querySelectorAll('.note-checkbox:checked');
             if (confirm(`確定刪除 ${selected.length} 項？`)) {
@@ -328,17 +450,6 @@
                 await batch.commit();
             }
         };
-
-        function processNoteContent(rawText) {
-            let content = rawText.trim(); if (!content) return null;
-            let categories = getSelectedCategories(); 
-            const map = { '1': '個人', '2': '家庭', '3': '班級', '4': '大吉', '5': '代辦' };
-            if (map[content[0]]) {
-                if (!categories.includes(map[content[0]])) categories.push(map[content[0]]);
-                content = content.substring(1).replace(/^[:.、\s]+/, '');
-            }
-            return { content, categories };
-        }
     </script>
 </body>
 </html>
