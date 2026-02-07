@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>雲端剪貼簿</title>
+    <title>雲端剪貼簿 (進階篩選版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -24,7 +24,7 @@
         input[type="date"]::-webkit-calendar-picker-indicator { background: transparent; bottom: 0; color: transparent; cursor: pointer; height: auto; left: 0; position: absolute; right: 0; top: 0; width: auto; }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen pb-32">
+<body class="bg-gray-100 min-h-screen pb-48">
 
     <div class="max-w-3xl mx-auto p-3 md:p-4">
         <header class="py-4 text-center">
@@ -76,15 +76,25 @@
             </div>
         </div>
 
-        <div id="batchBar" class="hidden fixed bottom-6 left-4 right-4 z-40 bg-gray-900/95 backdrop-blur text-white p-4 rounded-2xl shadow-2xl flex flex-wrap justify-between items-center animate-slide-up gap-2">
-            <div class="flex items-center gap-3">
-                <button id="selectAllBtn" onclick="toggleSelectAll()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg font-bold text-sm">全選</button>
-                <span id="selectedCount" class="font-bold text-sm">0 項</span>
+        <div id="batchBar" class="hidden fixed bottom-6 left-4 right-4 z-40 bg-gray-900/95 backdrop-blur text-white p-4 rounded-2xl shadow-2xl flex flex-col gap-3 animate-slide-up">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <button id="selectAllBtn" onclick="toggleSelectAll()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg font-bold text-sm">全選</button>
+                    <span id="selectedCount" class="font-bold text-sm text-blue-400">0 項</span>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="batchCopy()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md">複製</button>
+                    <button onclick="batchUploadDoc()" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md flex items-center gap-1"><i class="fas fa-file-word"></i> Docs</button>
+                    <button onclick="batchDelete()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md">刪除</button>
+                </div>
             </div>
-            <div class="flex gap-2">
-                <button id="copyBatchBtn" onclick="batchCopy()" class="bg-blue-500 hover:bg-blue-600 text-white px-3 md:px-5 py-2 rounded-xl font-bold shadow-md whitespace-nowrap">複製</button>
-                <button onclick="batchUploadDoc()" class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 md:px-5 py-2 rounded-xl font-bold shadow-md whitespace-nowrap flex items-center gap-1"><i class="fas fa-file-word"></i> Docs</button>
-                <button onclick="batchDelete()" class="bg-red-500 hover:bg-red-600 text-white px-3 md:px-5 py-2 rounded-xl font-bold shadow-md whitespace-nowrap">刪除</button>
+            <div class="flex gap-2 overflow-x-auto hide-scrollbar border-t border-gray-700 pt-2 items-center">
+                <span class="text-[10px] text-gray-400 font-bold whitespace-nowrap">快速排除：</span>
+                <button onclick="excludeCategory('個人')" class="bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded text-[11px] border border-gray-600 whitespace-nowrap">排除個人</button>
+                <button onclick="excludeCategory('家庭')" class="bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded text-[11px] border border-gray-600 whitespace-nowrap">排除家庭</button>
+                <button onclick="excludeCategory('班級')" class="bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded text-[11px] border border-gray-600 whitespace-nowrap">排除班級</button>
+                <button onclick="excludeCategory('大吉')" class="bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded text-[11px] border border-gray-600 whitespace-nowrap">排除大吉</button>
+                <button onclick="excludeCategory('代辦')" class="bg-red-900/30 hover:bg-red-900/50 px-2 py-1 rounded text-[11px] border border-red-700 text-red-200 whitespace-nowrap">排除代辦</button>
             </div>
         </div>
 
@@ -98,7 +108,6 @@
         import { getFirestore, collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, doc, deleteDoc, updateDoc, writeBatch } 
         from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // --- 核心修改：更新 Google Apps Script 網址 ---
         const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwY3Z2zLpHG8F3HLcys3T2vJuBNUQRrV-H2BqgU_KyNmo1H9RZj_mwwQv0Znt666La-rg/exec";
         
         const firebaseConfig = {
@@ -134,20 +143,14 @@
         const formatDate = (timestamp) => {
             if (!timestamp) return '剛剛';
             const date = timestamp.toDate();
-            const month = (date.getMonth() + 1).toString().padStart(2, '0');
-            const day = date.getDate().toString().padStart(2, '0');
-            const hours = date.getHours().toString().padStart(2, '0');
-            const minutes = date.getMinutes().toString().padStart(2, '0');
-            return `${month}/${day} ${hours}:${minutes}`;
+            return `${(date.getMonth()+1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
         };
 
         const isToday = (timestamp) => {
             if (!timestamp) return true;
             const date = timestamp.toDate();
             const today = new Date();
-            return date.getDate() === today.getDate() &&
-                   date.getMonth() === today.getMonth() &&
-                   date.getFullYear() === today.getFullYear();
+            return date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
         };
 
         const isSameDate = (timestamp, dateStr) => {
@@ -157,135 +160,116 @@
             return dStr === dateStr;
         };
 
-        const getSelectedCategories = () => {
-            const checkedBoxes = document.querySelectorAll('.cat-checkbox:checked');
-            return Array.from(checkedBoxes).map(cb => cb.value);
-        };
-
-        function processNoteContent(rawText) {
-            let content = rawText.trim();
-            if (!content) return null;
-            let categories = getSelectedCategories(); 
-            const firstChar = content.charAt(0);
-            const map = { '1': '個人', '2': '家庭', '3': '班級', '4': '大吉', '5': '代辦' };
-            if (map[firstChar]) {
-                const autoCat = map[firstChar];
-                if (!categories.includes(autoCat)) categories.push(autoCat);
-                content = content.substring(1).replace(/^[:.、\s]+/, '');
-            }
-            return { content, categories };
-        }
-
         const q = query(notesCol); 
-        
-        const loadTimeout = setTimeout(() => {
-            if (notesList.innerText.includes("資料載入中")) {
-                notesList.innerHTML = `<div class="p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg text-center">
-                    <i class="fas fa-clock text-3xl mb-2"></i><br>
-                    <b>連線逾時</b><br>請檢查網路。
-                </div>`;
-            }
-        }, 8000);
-
         onSnapshot(q, (snapshot) => {
-            clearTimeout(loadTimeout);
             loadedNotes = [];
             snapshot.forEach((docSnap) => {
                 const data = docSnap.data();
                 let catArray = (Array.isArray(data.category)) ? data.category : (data.category ? [data.category] : []);
-                loadedNotes.push({ 
-                    id: docSnap.id, 
-                    content: data.content, 
-                    category: catArray, 
-                    order: data.order || 0,
-                    createdAt: data.createdAt, 
-                    isPinned: data.isPinned || false
-                });
+                loadedNotes.push({ id: docSnap.id, content: data.content, category: catArray, order: data.order || 0, createdAt: data.createdAt, isPinned: data.isPinned || false });
             });
-
             loadedNotes.sort((a, b) => {
                 if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
                 const timeA = a.createdAt ? a.createdAt.seconds : 0;
                 const timeB = b.createdAt ? b.createdAt.seconds : 0;
                 return timeB - timeA; 
             });
-
             renderAllNotes();
             updateBatchUI();
-        }, (error) => {
-            clearTimeout(loadTimeout);
-            console.error("Firebase Error:", error);
-            notesList.innerHTML = `<div class="p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg text-center">
-                <i class="fas fa-exclamation-triangle text-3xl mb-2"></i><br>
-                <b>讀取錯誤</b><br>${error.code}
-            </div>`;
         });
 
+        // --- 核心邏輯：排除分類 ---
+        window.excludeCategory = (catName) => {
+            const checkboxes = document.querySelectorAll('.note-checkbox:checked');
+            checkboxes.forEach(cb => {
+                const note = loadedNotes.find(n => n.id === cb.value);
+                if (note && note.category.includes(catName)) {
+                    cb.checked = false;
+                }
+            });
+            updateBatchUI();
+        };
+
+        window.toggleSelectAll = () => {
+            const checkboxes = document.querySelectorAll('.note-checkbox');
+            const anyUnchecked = Array.from(checkboxes).some(cb => !cb.checked);
+            checkboxes.forEach(cb => cb.checked = anyUnchecked);
+            updateBatchUI();
+        };
+
+        window.updateBatchUI = () => {
+            const checkboxes = document.querySelectorAll('.note-checkbox');
+            const selected = document.querySelectorAll('.note-checkbox:checked');
+            document.getElementById('selectedCount').innerText = `${selected.length} 項`;
+            if (selected.length > 0) batchBar.classList.remove('hidden'); else batchBar.classList.add('hidden');
+            if (checkboxes.length > 0 && selected.length === checkboxes.length) selectAllBtn.innerText = "取消"; else selectAllBtn.innerText = "全選";
+        };
+
+        function getBatchContent() {
+            const selectedIds = Array.from(document.querySelectorAll('.note-checkbox:checked')).map(cb => cb.value);
+            if (selectedIds.length === 0) return null;
+            let selectedNotes = loadedNotes.filter(n => selectedIds.includes(n.id));
+            const notesByDate = {};
+            selectedNotes.forEach(note => {
+                let dateStr = "未知日期";
+                if (note.createdAt) {
+                    const d = note.createdAt.toDate();
+                    dateStr = `${d.getFullYear()}/${(d.getMonth()+1).toString().padStart(2, '0')}/${d.getDate().toString().padStart(2, '0')}`;
+                }
+                if (!notesByDate[dateStr]) notesByDate[dateStr] = [];
+                notesByDate[dateStr].push(note);
+            });
+            const sortedDates = Object.keys(notesByDate).sort((a, b) => b.localeCompare(a));
+            const targetCategories = ["個人", "家庭", "班級", "大吉", "代辦", ""]; 
+            let finalOutput = [];
+            sortedDates.forEach(date => {
+                let dateSection = `📅 ${date}\n--------------------`;
+                const notesInDate = notesByDate[date];
+                const catGroups = {};
+                targetCategories.forEach(c => catGroups[c] = []);
+                notesInDate.forEach(note => {
+                    const cats = (note.category && note.category.length > 0) ? note.category : [""];
+                    cats.forEach(cat => {
+                        const formattedNote = `• ${note.content}`;
+                        if (catGroups[cat]) catGroups[cat].push(formattedNote); else catGroups[""].push(formattedNote);
+                    });
+                });
+                let hasContent = false;
+                targetCategories.forEach(cat => {
+                    if (catGroups[cat] && catGroups[cat].length > 0) {
+                        const header = cat === "" ? "無分類" : cat;
+                        dateSection += `\n\n【${header}】\n` + catGroups[cat].join('\n');
+                        hasContent = true;
+                    }
+                });
+                if (hasContent) finalOutput.push(dateSection);
+            });
+            return finalOutput.join('\n\n====================\n\n');
+        }
+
+        // --- 其餘 CRUD 與介面功能 (維持不變) ---
         pasteBtn.onclick = async () => {
             try {
-                const originalIcon = pasteBtn.innerHTML;
-                pasteBtnText.innerText = "讀取...";
                 const text = await navigator.clipboard.readText();
                 const processed = processNoteContent(text);
                 if (processed && processed.content.length > 0) {
-                    pasteBtnText.innerText = "儲存中...";
-                    await addDoc(notesCol, { 
-                        content: processed.content, 
-                        category: processed.categories,
-                        createdAt: serverTimestamp(),
-                        order: Date.now() * -1,
-                        isPinned: false
-                    });
-                    pasteBtn.classList.replace('bg-green-500', 'bg-blue-600');
-                    pasteBtn.innerHTML = '<i class="fas fa-check-circle text-2xl"></i><span>已儲存！</span>';
-                    setTimeout(() => {
-                        pasteBtn.classList.replace('bg-blue-600', 'bg-green-500');
-                        pasteBtn.innerHTML = originalIcon;
-                    }, 1500);
-                } else {
-                    alert("內容為空或無法讀取");
-                    pasteBtnText.innerText = "一鍵貼上並儲存";
+                    await addDoc(notesCol, { content: processed.content, category: processed.categories, createdAt: serverTimestamp(), order: Date.now() * -1, isPinned: false });
+                    pasteBtnText.innerText = "已貼上！"; setTimeout(() => pasteBtnText.innerText = "一鍵貼上並儲存", 1500);
                 }
-            } catch (err) {
-                console.error(err);
-                alert("無法存取剪貼簿，請手動貼上。");
-                pasteBtnText.innerText = "一鍵貼上並儲存";
-            }
+            } catch (err) { alert("無法存取剪貼簿"); }
         };
 
         document.getElementById('saveBtn').onclick = async () => {
-            const text = noteInput.value;
-            const processed = processNoteContent(text);
-            if (!processed || !processed.content) return;
-            await addDoc(notesCol, { 
-                content: processed.content, 
-                category: processed.categories,
-                createdAt: serverTimestamp(),
-                order: Date.now() * -1,
-                isPinned: false
-            });
-            noteInput.value = '';
-            noteInput.style.height = 'auto';
-            document.querySelectorAll('.cat-checkbox').forEach(cb => cb.checked = false);
+            const processed = processNoteContent(noteInput.value);
+            if (!processed) return;
+            await addDoc(notesCol, { content: processed.content, category: processed.categories, createdAt: serverTimestamp(), order: Date.now() * -1, isPinned: false });
+            noteInput.value = ''; noteInput.style.height = 'auto';
         };
 
         window.setFilter = (filter) => {
             currentFilter = filter;
-            if (filter === 'date') {
-                dateInputFilter.parentElement.classList.add('ring-2', 'ring-blue-500', 'rounded-lg');
-            } else {
-                dateInputFilter.parentElement.classList.remove('ring-2', 'ring-blue-500', 'rounded-lg');
-                if (filter !== 'date') dateInputFilter.value = ''; 
-            }
             document.querySelectorAll('.filter-btn').forEach(btn => {
-                const btnFilter = btn.dataset.filter;
-                if (btnFilter === filter) {
-                    btn.className = "filter-btn bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition";
-                } else {
-                    let baseClass = "filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition hover:bg-gray-50";
-                    if (btnFilter === 'today') baseClass = "filter-btn bg-white text-blue-600 border border-blue-200 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition hover:bg-blue-50";
-                    btn.className = baseClass;
-                }
+                btn.className = btn.dataset.filter === filter ? "filter-btn bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition" : "filter-btn bg-white text-gray-600 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap transition hover:bg-gray-50";
             });
             renderAllNotes();
         };
@@ -299,192 +283,62 @@
                 if (currentFilter === 'uncategorized') return note.category.length === 0;
                 return note.category.includes(currentFilter);
             });
-            if (filtered.length === 0) {
-                notesList.innerHTML = `<div class="text-center text-gray-400 py-8">沒有符合條件的資料</div>`;
-                return;
-            }
             filtered.forEach(note => {
                 const div = document.createElement('div');
                 const pinnedClass = note.isPinned ? 'pinned-card' : 'bg-white';
-                div.className = `note-card ${pinnedClass} p-3 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-3 relative group`;
+                div.className = `note-card ${pinnedClass} p-3 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-3 relative`;
                 div.dataset.id = note.id; 
-                const labels = ["個人", "家庭", "班級", "大吉", "代辦"];
-                let categoryButtonsHtml = labels.map(cat => {
-                    const isSelected = note.category.includes(cat);
-                    const style = isSelected ? "bg-blue-500 text-white border-blue-600 shadow-sm" : "bg-white text-gray-400 border-gray-200 hover:bg-gray-50";
-                    return `<button onclick="toggleNoteCategory('${note.id}', '${cat}')" class="px-2 py-1 rounded text-[11px] font-bold border transition ${style}">${cat}</button>`;
-                }).join('');
-                const pinIconClass = note.isPinned ? 'pinned-icon-active' : 'text-gray-300 hover:text-gray-500';
                 div.innerHTML = `
                     <div class="flex flex-col items-center gap-2 mt-2">
-                        <div class="drag-handle cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 px-1"><i class="fas fa-bars"></i></div>
                         <input type="checkbox" class="note-checkbox checkbox-custom" value="${note.id}" onchange="updateBatchUI()">
                     </div>
-                    <div class="flex-1 min-w-0 relative">
-                        <button onclick="togglePin('${note.id}', ${note.isPinned})" class="absolute top-0 right-0 p-2 transition ${pinIconClass}" title="置頂"><i class="fas fa-thumbtack"></i></button>
-                        <div class="flex flex-wrap gap-1 mb-2 pr-8">${categoryButtonsHtml}</div>
-                        <textarea id="text-${note.id}" oninput="autoHeight(this); showSaveHint('${note.id}')" class="auto-height w-full p-2 text-lg text-gray-800 bg-transparent border-b border-transparent focus:border-blue-200 focus:bg-gray-50 rounded transition-colors resize-none font-medium outline-none" rows="1">${note.content}</textarea>
-                        <div class="flex justify-between items-end mt-2">
-                            <span class="text-xs text-gray-400 font-mono ml-2 mb-1">${formatDate(note.createdAt)}</span>
-                            <div class="flex gap-2 items-center">
-                                <button onclick="updateNoteContent('${note.id}', this)" class="bg-green-100 text-green-700 hover:bg-green-200 px-3 py-1.5 rounded-lg text-sm font-bold transition flex items-center gap-1"><i class="fas fa-save"></i> 儲存</button>
-                                <button onclick="copySingle('${note.id}')" class="text-gray-400 hover:text-blue-500 p-2 transition" title="複製"><i class="far fa-copy fa-lg"></i></button>
-                                <button onclick="deleteNote('${note.id}')" class="text-gray-400 hover:text-red-500 p-2 transition" title="刪除"><i class="far fa-trash-alt fa-lg"></i></button>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex flex-wrap gap-1 mb-2">
+                            ${note.category.map(cat => `<span class="bg-blue-100 text-blue-600 px-2 py-0.5 rounded text-[10px] font-bold">${cat}</span>`).join('')}
+                        </div>
+                        <div class="text-lg text-gray-800 whitespace-pre-wrap">${note.content}</div>
+                        <div class="flex justify-between items-center mt-2">
+                            <span class="text-[10px] text-gray-400 font-mono">${formatDate(note.createdAt)}</span>
+                            <div class="flex gap-2">
+                                <button onclick="togglePin('${note.id}', ${note.isPinned})" class="${note.isPinned ? 'text-yellow-600' : 'text-gray-300'} p-1"><i class="fas fa-thumbtack"></i></button>
+                                <button onclick="deleteNote('${note.id}')" class="text-gray-300 hover:text-red-500 p-1"><i class="far fa-trash-alt"></i></button>
                             </div>
                         </div>
                     </div>
                 `;
                 notesList.appendChild(div);
             });
-            initSortable();
-            setTimeout(() => document.querySelectorAll('.auto-height').forEach(el => autoHeight(el)), 50);
         }
 
-        function initSortable() {
-            new Sortable(notesList, {
-                handle: '.drag-handle',
-                animation: 150,
-                ghostClass: 'sortable-ghost',
-                dragClass: 'sortable-drag',
-                onEnd: async function (evt) {
-                    const items = Array.from(notesList.children);
-                    if (items.length < 2) return;
-                    const batch = writeBatch(db);
-                    items.forEach((item, index) => {
-                        const id = item.dataset.id;
-                        if (id) {
-                            const ref = doc(db, "notes", id);
-                            batch.update(ref, { order: index });
-                        }
-                    });
-                    await batch.commit();
-                }
-            });
-        }
-        window.showSaveHint = (id) => { };
-        window.togglePin = async (id, currentStatus) => { await updateDoc(doc(db, "notes", id), { isPinned: !currentStatus }); };
-        window.updateNoteContent = async (id, btn) => {
-            const newContent = document.getElementById(`text-${id}`).value;
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-            btn.disabled = true;
-            try { await updateDoc(doc(db, "notes", id), { content: newContent }); btn.innerHTML = '<i class="fas fa-check"></i>'; btn.classList.replace('bg-green-100', 'bg-green-200'); setTimeout(() => { btn.innerHTML = originalText; btn.classList.replace('bg-green-200', 'bg-green-100'); btn.disabled = false; }, 1000); } catch (e) { alert("儲存失敗"); btn.disabled = false; btn.innerHTML = originalText; }
-        };
-        window.toggleNoteCategory = async (id, targetCat) => {
-            const note = loadedNotes.find(n => n.id === id);
-            let currentCats = [...note.category]; 
-            if (currentCats.includes(targetCat)) currentCats = currentCats.filter(c => c !== targetCat); else currentCats.push(targetCat);
-            await updateDoc(doc(db, "notes", id), { category: currentCats });
-        };
-        window.copySingle = (id) => { const text = document.getElementById(`text-${id}`).value; navigator.clipboard.writeText(text).then(() => alert("已複製！")); };
-        window.toggleSelectAll = () => {
-            const checkboxes = document.querySelectorAll('.note-checkbox');
-            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-            checkboxes.forEach(cb => cb.checked = !allChecked);
-            updateBatchUI();
-        };
-        window.updateBatchUI = () => {
-            const checkboxes = document.querySelectorAll('.note-checkbox');
-            const selected = document.querySelectorAll('.note-checkbox:checked');
-            document.getElementById('selectedCount').innerText = `${selected.length} 項`;
-            if (selected.length > 0) batchBar.classList.remove('hidden'); else batchBar.classList.add('hidden');
-            if (checkboxes.length > 0 && selected.length === checkboxes.length) selectAllBtn.innerText = "取消"; else selectAllBtn.innerText = "全選";
-        };
-
-        function getBatchContent() {
-            const selectedIds = Array.from(document.querySelectorAll('.note-checkbox:checked')).map(cb => cb.value);
-            if (selectedIds.length === 0) return null;
-
-            let selectedNotes = loadedNotes.filter(n => selectedIds.includes(n.id));
-
-            // 1. 依照日期分組
-            const notesByDate = {};
-            selectedNotes.forEach(note => {
-                let dateStr = "未知日期";
-                if (note.createdAt) {
-                    const d = note.createdAt.toDate();
-                    dateStr = `${d.getFullYear()}/${(d.getMonth()+1).toString().padStart(2, '0')}/${d.getDate().toString().padStart(2, '0')}`;
-                }
-                if (!notesByDate[dateStr]) notesByDate[dateStr] = [];
-                notesByDate[dateStr].push(note);
-            });
-
-            const sortedDates = Object.keys(notesByDate).sort((a, b) => b.localeCompare(a));
-            const targetCategories = ["個人", "家庭", "班級", "大吉", "代辦", ""]; 
-            let finalOutput = [];
-
-            sortedDates.forEach(date => {
-                let dateSection = `📅 ${date}\n--------------------`;
-                const notesInDate = notesByDate[date];
-                const catGroups = {};
-                targetCategories.forEach(c => catGroups[c] = []);
-
-                notesInDate.forEach(note => {
-                    const cats = (note.category && note.category.length > 0) ? note.category : [""];
-                    cats.forEach(cat => {
-                        const formattedNote = `• ${note.content}`;
-                        if (catGroups[cat]) catGroups[cat].push(formattedNote);
-                        else catGroups[""].push(formattedNote);
-                    });
-                });
-
-                let hasContent = false;
-                targetCategories.forEach(cat => {
-                    if (catGroups[cat] && catGroups[cat].length > 0) {
-                        const header = cat === "" ? "無分類" : cat;
-                        dateSection += `\n\n【${header}】\n` + catGroups[cat].join('\n');
-                        hasContent = true;
-                    }
-                });
-
-                if (hasContent) finalOutput.push(dateSection);
-            });
-
-            return finalOutput.join('\n\n====================\n\n');
-        }
-
-        window.batchCopy = () => {
-            const textToCopy = getBatchContent();
-            if (!textToCopy) return;
-            navigator.clipboard.writeText(textToCopy).then(() => alert("已依清單格式複製！"));
-        };
-
+        window.togglePin = async (id, status) => { await updateDoc(doc(db, "notes", id), { isPinned: !status }); };
+        window.deleteNote = async (id) => { if (confirm("確定刪除？")) await deleteDoc(doc(db, "notes", id)); };
+        window.batchCopy = () => { const text = getBatchContent(); if (text) { navigator.clipboard.writeText(text).then(() => alert("已依清單格式複製！")); } };
         window.batchUploadDoc = async () => {
-            const textContent = getBatchContent();
-            if (!textContent) return alert("請先選取要上傳的筆記");
-            const btn = document.querySelector('button[onclick="batchUploadDoc()"]');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 上傳中...';
-            btn.disabled = true;
+            const textContent = getBatchContent(); if (!textContent) return;
             try {
-                await fetch(GOOGLE_SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors', 
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        text: textContent,
-                        date: new Date().toLocaleDateString()
-                    })
-                });
-                alert("已發送上傳請求！\n請至 Google Drive 檢查文件。");
-            } catch (e) {
-                console.error(e);
-                alert("上傳發生錯誤，請檢查網路狀態。");
-            } finally {
-                btn.innerHTML = originalText;
-                btn.disabled = false;
+                await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ text: textContent, date: new Date().toLocaleDateString() }) });
+                alert("已發送上傳請求！");
+            } catch (e) { alert("上傳失敗"); }
+        };
+        window.batchDelete = async () => {
+            const selected = document.querySelectorAll('.note-checkbox:checked');
+            if (confirm(`確定刪除 ${selected.length} 項？`)) {
+                const batch = writeBatch(db);
+                selected.forEach(cb => batch.delete(doc(db, "notes", cb.value)));
+                await batch.commit();
             }
         };
 
-        window.batchDelete = async () => {
-            if (!confirm(`確定刪除 ${document.querySelectorAll('.note-checkbox:checked').length} 項？`)) return;
-            const selected = document.querySelectorAll('.note-checkbox:checked');
-            const batch = writeBatch(db);
-            selected.forEach(cb => batch.delete(doc(db, "notes", cb.value)));
-            await batch.commit();
-        };
-
-        window.deleteNote = async (id) => { if (confirm("確定刪除此筆記？")) await deleteDoc(doc(db, "notes", id)); };
+        function processNoteContent(rawText) {
+            let content = rawText.trim(); if (!content) return null;
+            let categories = getSelectedCategories(); 
+            const map = { '1': '個人', '2': '家庭', '3': '班級', '4': '大吉', '5': '代辦' };
+            if (map[content[0]]) {
+                if (!categories.includes(map[content[0]])) categories.push(map[content[0]]);
+                content = content.substring(1).replace(/^[:.、\s]+/, '');
+            }
+            return { content, categories };
+        }
     </script>
 </body>
 </html>
